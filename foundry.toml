@@ -1,0 +1,9 @@
+[default]
+optimizer = true
+optimizer_runs = 200
+src = 'contracts'
+
+[fake-bls]
+remappings = [
+    'contracts/light_client/utils/bls/=contracts/light_client/utils/bls_mock/'
+]

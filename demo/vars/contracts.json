@@ -1,0 +1,16 @@
+{
+  "home": {
+    "light_client": "0x395fd5e974d122ddf58ffdeadbf4ac0d2d8f793a",
+    "amb": "0x9545d39651c47dc1e83605c5a6e961b87c00da54",
+    "ob": "0x77b45697f481308c8e4f3e18d49e27a6db3d1aa0",
+    "weth": "0x2030fe144bfb3b4b4a06a1aedceddde43b48cd6b",
+    "weth_router": "0xb6860ba59b8bd17dd6a33647c320901f083ccd93"
+  },
+  "foreign": {
+    "light_client": "0x395fd5e974d122ddf58ffdeadbf4ac0d2d8f793a",
+    "amb": "0x9545d39651c47dc1e83605c5a6e961b87c00da54",
+    "ob": "0x77b45697f481308c8e4f3e18d49e27a6db3d1aa0",
+    "weth": "0x2030fe144bfb3b4b4a06a1aedceddde43b48cd6b",
+    "weth_router": "0xb6860ba59b8bd17dd6a33647c320901f083ccd93"
+  }
+}

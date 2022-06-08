@@ -1,0 +1,9 @@
+eth1:
+  client:
+    url: "http://geth-foreign:8545"
+  contract: "0x395fd5e974d122ddf58ffdeadbf4ac0d2d8f793a"
+  keystore: /tmp/keys/key_oracle.json
+  keystore_password: ''
+eth2:
+  client:
+    url: "http://lh-home-1:5052"

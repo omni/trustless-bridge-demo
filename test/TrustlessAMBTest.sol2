@@ -1,0 +1,94 @@
+pragma solidity 0.8.14;
+
+import "forge-std/Test.sol";
+import "../contracts/amb/TrustlessAMB.sol";
+import "../contracts/light_client/LightClientMock.sol";
+import "../contracts/omnibridge/upgradeable_contracts/HomeOmnibridge.sol";
+import "../contracts/omnibridge/upgradeable_contracts/ForeignOmnibridge.sol";
+import "../contracts/omnibridge/upgradeability/EternalStorageProxy.sol";
+import "../contracts/omnibridge/tokens/PermittableToken_flat.sol";
+
+contract TrustlessAMBTest is Test {
+    bytes32 emptyRoot = bytes32(0);
+
+    LightClient homeLightClient;
+    LightClient foreignLightClient;
+    TrustlessAMB home;
+    TrustlessAMB foreign;
+    HomeOmnibridge homeOB;
+    ForeignOmnibridge foreignOB;
+
+    function setUp() public {
+        LightClient.BeaconBlockHeader memory startBlock = LightClient.BeaconBlockHeader(
+            0, 0, emptyRoot, emptyRoot, emptyRoot, emptyRoot
+        );
+        homeLightClient = new LightClient(emptyRoot, block.timestamp, 1 days, startBlock);
+        foreignLightClient = new LightClient(emptyRoot, block.timestamp, 1 days, startBlock);
+        home = new TrustlessAMB(address(foreignLightClient));
+        foreign = new TrustlessAMB(address(homeLightClient));
+        home.setOtherSideTrustlessAMB(address(foreign));
+        foreign.setOtherSideTrustlessAMB(address(home));
+
+        EternalStorageProxy proxy = new EternalStorageProxy();
+        homeOB = new HomeOmnibridge(" from Foreign");
+        proxy.upgradeTo(1, address(homeOB));
+        homeOB = HomeOmnibridge(proxy);
+
+        proxy = new EternalStorageProxy();
+        foreignOB = new ForeignOmnibridge(" from Home");
+        proxy.upgradeTo(1, address(foreignOB));
+        foreignOB = ForeignOmnibridge(proxy);
+
+        address factory = address(new TokenFactory(address(0)));
+        homeOB.initialize(address(home), address(foreignOB), [100 ether, 10 ether, 0.001 ether], [100 ether, 10 ether], address(0), msg.sender, factory, address(0));
+    }
+
+    function testMessageIsPassedAndProcessed() public {
+        bytes32 messageId = home.requireToPassMessage(msg.sender, new bytes(0), 100000);
+        //        homeLightClient.setHead(1, LightClient.StorageBeaconBlockHeader(emptyRoot, emptyRoot, stateRoot));
+        bytes memory message = abi.encode(
+            0,
+            msg.sender,
+            msg.sender,
+            100000,
+            new bytes(0)
+        );
+        // foreign.executeMessage(1, message, )
+    }
+
+    function testMerkleProof() public {
+        bytes32[] memory proof = new bytes32[](9);
+        proof[0] = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
+        proof[1] = 0xdbe31d2970296284be1c6f73a756b24f946ab318bab8a32f11736685004bfa92;
+        proof[2] = 0x4df8239852c6acc3aee66e0509add907fa4c459efb7295be0fd2cb35c20e0235;
+        proof[3] = 0x3cbf88cff206a0c75157abc82859e0b8fc0707ef101264aa1c868642963ef172;
+        proof[4] = 0x0000000000000000000000000000000000000000000000000000000000000000;
+        proof[5] = 0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b;
+        proof[6] = 0xdb56114e00fdd4c1f85c892bf35ac9a89289aaecb1ebd0a96cde606a748b5d71;
+        proof[7] = 0x6e536ebadece41e9c4c7a8395f91bb987298d15b81aa4ec7bda4860652ba6c7f;
+        proof[8] = 0x6471f7b669a4fdf8159d6ea94ee97841ece58d7412615ff672db32c6ab2597eb;
+
+        bytes32 r = _restoreMerkleRoot(0xb8e6a65e1043da927e4f9a835fad2ee755c02a6c1231e6b5cb634e041f3ab255, 898, proof);
+        //
+        // 2 / 0..13
+        // 24 / 0..24
+        emit log_bytes32(r);
+        require(r == 0x7d1feb37e7a481915052a38e53f8aee13d589493741df29a24d2e68256110fa3, "invalid");
+    }
+
+    function _restoreMerkleRoot(
+        bytes32 leaf,
+        uint256 genIndex,
+        bytes32[] memory proof
+    ) internal returns (bytes32) {
+        require(genIndex >> proof.length == 1, "invalid proof length");
+        for (uint256 i = 0; i < proof.length; i++) {
+            if (genIndex & (1 << i) == 0) {
+                leaf = sha256(abi.encodePacked(leaf, proof[i]));
+            } else {
+                leaf = sha256(abi.encodePacked(proof[i], leaf));
+            }
+        }
+        return leaf;
+    }
+}

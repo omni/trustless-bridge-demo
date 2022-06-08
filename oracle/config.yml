@@ -1,0 +1,7 @@
+eth1:
+  client:
+    url: "http://localhost:8545"
+  contract: "0x4188d92C43C95A6b376c603F657C138DFC2Ed2af"
+eth2:
+  client:
+    url: "https://1zH3z8NSrONGGk4ZpmeNMCJDcn7:fdb93d2513fdc0b3387892280e640c4a@eth2-beacon-prater.infura.io"
