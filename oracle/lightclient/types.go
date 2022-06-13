@@ -29,25 +29,28 @@ type G2Point struct {
 }
 
 type BeaconBlockHeader struct {
-	Slot               uint64      `json:"slot" abi:"slot"`
-	ProposerIndex      uint64      `json:"proposerIndex" abi:"proposerIndex"`
-	ParentRoot         common.Hash `json:"parentRoot" abi:"parentRoot"`
-	StateRoot          common.Hash `json:"stateRoot" abi:"stateRoot"`
-	BodyRoot           common.Hash `json:"bodyRoot" abi:"bodyRoot"`
-	ExecutionStateRoot common.Hash `json:"executionStateRoot" abi:"executionStateRoot"`
+	Slot                 uint64      `json:"slot" abi:"slot"`
+	ProposerIndex        uint64      `json:"proposerIndex" abi:"proposerIndex"`
+	ParentRoot           common.Hash `json:"parentRoot" abi:"parentRoot"`
+	StateRoot            common.Hash `json:"stateRoot" abi:"stateRoot"`
+	BodyRoot             common.Hash `json:"bodyRoot" abi:"bodyRoot"`
+	ExecutionStateRoot   common.Hash `json:"executionStateRoot" abi:"executionStateRoot"`
+	ExecutionBlockNumber uint64      `json:"executionBlockNumber" abi:"executionBlockNumber"`
 }
 
 type Update struct {
-	ForkVersion              [4]byte           `json:"forkVersion" abi:"forkVersion"`
-	AttestedHeader           BeaconBlockHeader `json:"attestedHeader" abi:"attestedHeader"`
-	FinalizedHeader          BeaconBlockHeader `json:"finalizedHeader" abi:"finalizedHeader"`
-	SyncCommittee            []G1Point         `json:"syncCommittee" abi:"syncCommittee"`
-	SyncCommitteeAggregated  G1Point           `json:"syncCommitteeAggregated" abi:"syncCommitteeAggregated"`
-	SyncAggregateSignature   G2Point           `json:"syncAggregateSignature" abi:"syncAggregateSignature"`
-	SyncAggregateBitList     []common.Hash     `json:"syncAggregateBitList" abi:"syncAggregateBitList"`
-	SyncCommitteeBranch      []common.Hash     `json:"syncCommitteeBranch" abi:"syncCommitteeBranch"`
-	FinalityBranch           []common.Hash     `json:"finalityBranch" abi:"finalityBranch"`
-	ExecutionStateRootBranch []common.Hash     `json:"executionStateRootBranch" abi:"executionStateRootBranch"`
+	ForkVersion                [4]byte           `json:"forkVersion" abi:"forkVersion"`
+	AttestedHeader             BeaconBlockHeader `json:"attestedHeader" abi:"attestedHeader"`
+	FinalizedHeader            BeaconBlockHeader `json:"finalizedHeader" abi:"finalizedHeader"`
+	SyncCommittee              []G1Point         `json:"syncCommittee" abi:"syncCommittee"`
+	SyncCommitteeAggregated    G1Point           `json:"syncCommitteeAggregated" abi:"syncCommitteeAggregated"`
+	SyncAggregateSignature     G2Point           `json:"syncAggregateSignature" abi:"syncAggregateSignature"`
+	SyncAggregateBitList       []common.Hash     `json:"syncAggregateBitList" abi:"syncAggregateBitList"`
+	SyncCommitteeBranch        []common.Hash     `json:"syncCommitteeBranch" abi:"syncCommitteeBranch"`
+	FinalityBranch             []common.Hash     `json:"finalityBranch" abi:"finalityBranch"`
+	ExecutionPayloadBranch     []common.Hash     `json:"executionPayloadBranch" abi:"executionPayloadBranch"`
+	ExecutionStateRootBranch   []common.Hash     `json:"executionStateRootBranch" abi:"executionStateRootBranch"`
+	ExecutionBlockNumberBranch []common.Hash     `json:"executionBlockNumberBranch" abi:"executionBlockNumberBranch"`
 }
 
 type SyncCommittee struct {

@@ -1,17 +1,18 @@
 package main
 
 import (
-	"bls-sandbox/config"
-	"bls-sandbox/contract"
-	"bls-sandbox/lightclient"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
-	"math/big"
 	"os"
 	"strings"
+
+	"bls-sandbox/config"
+	"bls-sandbox/contract"
+	"bls-sandbox/lightclient"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -53,7 +54,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		data, err := contractABI.Pack("headSlot")
+		data, err := contractABI.Pack("head")
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -63,11 +64,10 @@ func main() {
 			Gas:  100000,
 			Data: data,
 		}, nil)
-		slotBN, err := contractABI.Unpack("headSlot", res)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		slot = slotBN[0].(*big.Int).Uint64()
+		slot = binary.BigEndian.Uint64(res[24:32])
 	}
 
 	target := *targetSlot

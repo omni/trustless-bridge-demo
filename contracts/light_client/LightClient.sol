@@ -4,18 +4,28 @@ pragma experimental ABIEncoderV2;
 import "./interfaces/IBeaconLightClient.sol";
 import "./utils/CryptoUtils.sol";
 
-contract LightClient is IBeaconLightClient, CryptoUtils {
+contract LightClient is CryptoUtils {
     bytes32 public immutable GENESIS_VALIDATORS_ROOT;
     uint256 public immutable GENESIS_TIME;
     uint256 public immutable UPDATE_TIMEOUT;
 
-    uint256 public headSlot; // slot of latest known block
+    struct HeadPointer {
+        uint64 slot;
+        uint64 executionBlockNumber;
+    }
+    HeadPointer public head; // slot of latest known block + associated execution block number
     mapping(uint256 => StorageBeaconBlockHeader) public headers; // slot => header
 
-    uint256 public bestValidUpdateSlot;
-    StorageBeaconBlockHeader public bestValidUpdateHeader;
-    uint256 public bestValidUpdateSignatures;
-    uint256 public bestValidUpdateTimeout;
+    struct BestValidUpdate {
+        uint64 slot;
+        uint64 executionBlockNumber;
+        uint64 signatures;
+        uint64 timeout;
+        bytes32 root;
+        bytes32 stateRoot;
+        bytes32 executionStateRoot;
+    }
+    BestValidUpdate public bestValidUpdate;
 
     struct StorageBeaconBlockHeader {
         bytes32 root;
@@ -29,6 +39,7 @@ contract LightClient is IBeaconLightClient, CryptoUtils {
         bytes32 parentRoot;
         bytes32 stateRoot;
         bytes32 bodyRoot;
+        uint64 executionBlockNumber;
         bytes32 executionStateRoot;
     }
 
@@ -58,8 +69,12 @@ contract LightClient is IBeaconLightClient, CryptoUtils {
         // validity merkle proof of current_sync_committee/next_sync_committee against the current known header
         bytes32[] syncCommitteeBranch;
 
-        // validity merkle proof of execution stateRoot against the beacon state root
+        // validity merkle proof of execution payload root against the beacon state root
+        bytes32[] executionPayloadBranch;
+        // validity merkle proof of execution payload state root against execution payload root
         bytes32[] executionStateRootBranch;
+        // validity merkle proof of execution payload block number against execution payload root
+        bytes32[] executionBlockNumberBranch;
     }
 
     event HeadUpdated(uint256 indexed slot, bytes32 indexed root);
@@ -74,7 +89,10 @@ contract LightClient is IBeaconLightClient, CryptoUtils {
         GENESIS_VALIDATORS_ROOT = genesisValidatorsRoot;
         GENESIS_TIME = genesisTime;
         UPDATE_TIMEOUT = updateTimeout;
-        _setHead(startHeader.slot, StorageBeaconBlockHeader(_headerRoot(startHeader), startHeader.stateRoot, startHeader.executionStateRoot));
+        _setHead(
+            HeadPointer(startHeader.slot, startHeader.executionBlockNumber),
+            StorageBeaconBlockHeader(_headerRoot(startHeader), startHeader.stateRoot, startHeader.executionStateRoot)
+        );
     }
 
     function executionStateRootByBlockNumber(uint256 blockNumber) external view returns (bytes32) {
@@ -90,12 +108,12 @@ contract LightClient is IBeaconLightClient, CryptoUtils {
             activeHeader = update.attestedHeader;
         }
 
-        require(activeHeader.slot > headSlot, "Update slot is less or equal than current head");
+        require(activeHeader.slot > head.slot, "Update slot is less or equal than current head");
         require(activeHeader.slot <= _curSlot(), "Update slot is too far in the future");
 
         uint256 syncCommitteeIndex;
         {
-            uint256 currentSyncCommitteePeriod = _syncCommitteePeriod(headSlot);
+            uint256 currentSyncCommitteePeriod = _syncCommitteePeriod(head.slot);
             uint256 updateSyncCommitteePeriod = _syncCommitteePeriod(update.attestedHeader.slot);
             if (updateSyncCommitteePeriod == currentSyncCommitteePeriod) {
                 syncCommitteeIndex = CURRENT_SYNC_COMMITTEE_INDEX;
@@ -119,14 +137,20 @@ contract LightClient is IBeaconLightClient, CryptoUtils {
             require(update.finalizedHeader.slot == 0, "Invalid finalizedHeader");
         }
 
-        // verify that given execution state root is correct
+        // verify that given execution state root & block number are correct
+        bytes32 root = _uintToLE(activeHeader.executionBlockNumber);
+        root = _restoreMerkleRoot(root, EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, update.executionBlockNumberBranch);
         restoredStateRoot = _restoreMerkleRoot(activeHeader.executionStateRoot, EXECUTION_PAYLOAD_STATE_ROOT_INDEX, update.executionStateRootBranch);
+        require(root == restoredStateRoot, "Cannot verify execution payload header proofs");
+
+        // verify that given execution payload header root is correct
+        restoredStateRoot = _restoreMerkleRoot(restoredStateRoot, EXECUTION_PAYLOAD_INDEX, update.executionPayloadBranch);
         require(restoredStateRoot == activeHeader.stateRoot, "Cannot verify execution state root proof");
 
         // verify that given sync committee is in the latest known block
         bytes32 syncCommitteeRoot = _hashSyncCommittee(update.syncCommittee, update.syncCommitteeAggregated);
         restoredStateRoot = _restoreMerkleRoot(syncCommitteeRoot, syncCommitteeIndex, update.syncCommitteeBranch);
-        require(headers[headSlot].stateRoot == restoredStateRoot, "Cannot verify sync committee proof");
+        require(headers[head.slot].stateRoot == restoredStateRoot, "Cannot verify sync committee proof");
 
         // verify sync committee signature
         (uint256 count, G1Point memory aggregatedPK) = _aggregatePubkeys(update.syncCommittee, update.syncAggregateBitList);
@@ -135,41 +159,51 @@ contract LightClient is IBeaconLightClient, CryptoUtils {
         bytes32 signRoot = sha256(abi.encodePacked(attestedRoot, domainRoot));
         require(verifyBLSSignature(signRoot, aggregatedPK, update.syncAggregateSignature), "Invalid signature");
 
+        HeadPointer memory newHead = HeadPointer(activeHeader.slot, activeHeader.executionBlockNumber);
         StorageBeaconBlockHeader memory compactHeader = StorageBeaconBlockHeader(activeRoot, activeHeader.stateRoot, activeHeader.executionStateRoot);
         if (3 * count >= 2 * SYNC_COMMITTEE_SIZE && hasFinalityProof) {
-            _setHead(activeHeader.slot, compactHeader);
+            _setHead(newHead, compactHeader);
         } else {
-            if (bestValidUpdateSlot > headSlot) {
+            if (bestValidUpdate.slot > head.slot) {
                 // revert, if current candidate is valid and better than the proposed one
-                require(count > bestValidUpdateSignatures, "Not a best candidate update");
+                require(count > bestValidUpdate.signatures, "Not a best candidate update");
             }
-            _setCandidate(activeHeader.slot, compactHeader, count);
+            _setCandidate(newHead, compactHeader, count);
         }
     }
 
     function applyCandidate() external {
-        uint256 slot = bestValidUpdateSlot;
-        StorageBeaconBlockHeader memory _header = bestValidUpdateHeader;
-        require(slot > headSlot, "No candidate update");
+        uint64 slot = bestValidUpdate.slot;
+        StorageBeaconBlockHeader memory _header = StorageBeaconBlockHeader(
+            bestValidUpdate.root,
+            bestValidUpdate.stateRoot,
+            bestValidUpdate.executionStateRoot
+        );
+        require(slot > head.slot, "No candidate update");
         require(_header.root != bytes32(0), "Invalid candidate update");
         require(_curSlot() > slot + SLOTS_PER_SYNC_COMMITTEE_PERIOD, "Waiting for sync period to end");
-        require(bestValidUpdateTimeout < block.timestamp, "Waiting for UPDATE_TIMEOUT");
+        require(bestValidUpdate.timeout < block.timestamp, "Waiting for UPDATE_TIMEOUT");
 
-        _setHead(slot, _header);
+        _setHead(HeadPointer(slot, bestValidUpdate.executionBlockNumber), _header);
     }
 
-    function _setHead(uint256 _slot, StorageBeaconBlockHeader memory _header) internal {
-        headSlot = _slot;
-        headers[_slot] = _header;
-        emit HeadUpdated(_slot, _header.root);
+    function _setHead(HeadPointer memory _head, StorageBeaconBlockHeader memory _header) internal {
+        head = _head;
+        headers[_head.slot] = _header;
+        emit HeadUpdated(_head.slot, _header.root);
     }
 
-    function _setCandidate(uint256 _slot, StorageBeaconBlockHeader memory _header, uint256 _signatures) internal {
-        bestValidUpdateHeader = _header;
-        bestValidUpdateSignatures = _signatures;
-        bestValidUpdateSlot = _slot;
-        bestValidUpdateTimeout = block.timestamp + UPDATE_TIMEOUT;
-        emit CandidateUpdated(_slot, _header.root, _signatures);
+    function _setCandidate(HeadPointer memory _head, StorageBeaconBlockHeader memory _header, uint256 _signatures) internal {
+        bestValidUpdate = BestValidUpdate(
+            _head.slot,
+            _head.executionBlockNumber,
+            uint64(_signatures),
+            uint64(block.timestamp + UPDATE_TIMEOUT),
+            _header.root,
+            _header.stateRoot,
+            _header.executionStateRoot
+        );
+        emit CandidateUpdated(_head.slot, _header.root, _signatures);
     }
 
     function _curSlot() internal returns (uint256) {

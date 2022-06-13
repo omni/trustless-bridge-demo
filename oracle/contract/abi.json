@@ -44,6 +44,11 @@
             "type": "bytes32"
           },
           {
+            "internalType": "uint64",
+            "name": "executionBlockNumber",
+            "type": "uint64"
+          },
+          {
             "internalType": "bytes32",
             "name": "executionStateRoot",
             "type": "bytes32"
@@ -214,8 +219,28 @@
   },
   {
     "inputs": [],
-    "name": "bestValidUpdateHeader",
+    "name": "bestValidUpdate",
     "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "slot",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "executionBlockNumber",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "signatures",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "timeout",
+        "type": "uint64"
+      },
       {
         "internalType": "bytes32",
         "name": "root",
@@ -230,45 +255,6 @@
         "internalType": "bytes32",
         "name": "executionStateRoot",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "bestValidUpdateSignatures",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "bestValidUpdateSlot",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "bestValidUpdateTimeout",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -295,12 +281,17 @@
   },
   {
     "inputs": [],
-    "name": "headSlot",
+    "name": "head",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
+        "internalType": "uint64",
+        "name": "slot",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "executionBlockNumber",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -372,6 +363,11 @@
                 "type": "bytes32"
               },
               {
+                "internalType": "uint64",
+                "name": "executionBlockNumber",
+                "type": "uint64"
+              },
+              {
                 "internalType": "bytes32",
                 "name": "executionStateRoot",
                 "type": "bytes32"
@@ -407,6 +403,11 @@
                 "internalType": "bytes32",
                 "name": "bodyRoot",
                 "type": "bytes32"
+              },
+              {
+                "internalType": "uint64",
+                "name": "executionBlockNumber",
+                "type": "uint64"
               },
               {
                 "internalType": "bytes32",
@@ -606,7 +607,17 @@
           },
           {
             "internalType": "bytes32[]",
+            "name": "executionPayloadBranch",
+            "type": "bytes32[]"
+          },
+          {
+            "internalType": "bytes32[]",
             "name": "executionStateRootBranch",
+            "type": "bytes32[]"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "executionBlockNumberBranch",
             "type": "bytes32[]"
           }
         ],

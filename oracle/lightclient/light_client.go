@@ -212,10 +212,9 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	if err != nil {
 		return nil, fmt.Errorf("can't get execution payload merkle tree: %w", err)
 	}
-	update.ExecutionStateRootBranch = append(
-		executionPayloadTree.MakeProof(2).Path,
-		stateTree.MakeProof(24).Path...,
-	)
+	update.ExecutionPayloadBranch = stateTree.MakeProof(24).Path
+	update.ExecutionStateRootBranch = executionPayloadTree.MakeProof(2).Path
+	update.ExecutionBlockNumberBranch = executionPayloadTree.MakeProof(6).Path
 	for _, pk := range cmt.PublicKeys {
 		update.SyncCommittee = append(update.SyncCommittee, PkToG1(pk))
 	}

@@ -5,10 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"math/big"
-	"net/http"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rpc"
-	eth "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 
 	"executor/abi"
 	"executor/sender"
@@ -28,7 +25,6 @@ var (
 	targetRPC    = flag.String("targetRpc", "", "")
 	sourceAMB    = flag.String("sourceAmb", "", "")
 	targetAMB    = flag.String("targetAmb", "", "")
-	sourceBN     = flag.String("sourceBn", "", "")
 	targetLC     = flag.String("targetLc", "", "")
 	msgNonce     = flag.Int64("msgNonce", 0, "")
 	keystore     = flag.String("keystore", "", "")
@@ -77,25 +73,16 @@ func main() {
 	data, err = targetClient.CallContract(context.TODO(), ethereum.CallMsg{
 		To:   &to,
 		Gas:  100000,
-		Data: crypto.Keccak256Hash([]byte("headSlot()")).Bytes()[:4],
+		Data: crypto.Keccak256Hash([]byte("head()")).Bytes()[:4],
 	}, nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	if len(data) != 32 {
-		log.Fatalln("headSlot() should return 32 bytes")
+	if len(data) != 64 {
+		log.Fatalln("head() should return 64 bytes")
 	}
-	syncedSlot := binary.BigEndian.Uint64(data[24:32])
-	res, err := http.Get(fmt.Sprintf("%s/eth/v2/beacon/blocks/%d", *sourceBN, syncedSlot))
-	if err != nil {
-		log.Fatalln(err)
-	}
-	out := new(eth.SignedBeaconBlockBellatrix)
-	err = json.NewDecoder(res.Body).Decode(out)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	syncedBlockNumber := out.Block.Body.ExecutionPayload.BlockNumber
+	syncedBeaconSlot := binary.BigEndian.Uint64(data[24:32])
+	syncedBlockNumber := binary.BigEndian.Uint64(data[56:64])
 	if syncedBlockNumber < blockNumber {
 		log.Fatalf("not yet synced to the desired block number, %d < %d \n", syncedBlockNumber, blockNumber)
 	}
@@ -108,7 +95,7 @@ func main() {
 
 	accountProof := transformProof(proof.AccountProof)
 	storageProof := transformProof(proof.StorageProof[0].Proof)
-	data, err = abi.ABI.Pack("executeMessage", syncedBlockNumber, msg, accountProof, storageProof)
+	data, err = abi.ABI.Pack("executeMessage", big.NewInt(int64(syncedBeaconSlot)), msg, accountProof, storageProof)
 	if err != nil {
 		log.Fatalln(err)
 	}

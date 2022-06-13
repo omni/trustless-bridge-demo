@@ -56,11 +56,11 @@ function send() {
 echo "Deploying LightClient pair"
 
 HOME_LIGHT_CLIENT=$(deploy $HOME_RPC_URL $LIGHT_CLIENT \
-  $FOREIGN_GENESIS_VALIDATORS_ROOT $FOREIGN_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($FOREIGN_GENESIS_HEADER_DATA,$EMPTY_ROOT)")
+  $FOREIGN_GENESIS_VALIDATORS_ROOT $FOREIGN_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($FOREIGN_GENESIS_HEADER_DATA,0,$EMPTY_ROOT)")
 echo "Deployed Home LightClient at $HOME_LIGHT_CLIENT"
 
 FOREIGN_LIGHT_CLIENT=$(deploy $FOREIGN_RPC_URL $LIGHT_CLIENT \
-  $HOME_GENESIS_VALIDATORS_ROOT $HOME_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($HOME_GENESIS_HEADER_DATA,$EMPTY_ROOT)")
+  $HOME_GENESIS_VALIDATORS_ROOT $HOME_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($HOME_GENESIS_HEADER_DATA,0,$EMPTY_ROOT)")
 echo "Deployed Foreign LightClient at $FOREIGN_LIGHT_CLIENT"
 
 
@@ -106,11 +106,11 @@ echo "Deployed Foreign TokenFactory at $FOREIGN_FACTORY"
 
 
 echo "Deploying HomeOmnibridge"
-HOME_OB_I=$(deploy $HOME_RPC_URL $HOME_OB_IMPL " from Foreign")
+HOME_OB_I=$(deploy $HOME_RPC_URL $HOME_OB_IMPL '_from_Foreign')
 echo "Deployed HomeOmnibridge at $HOME_OB_I"
 
 echo "Deploying ForeignOmnibridge"
-FOREIGN_OB_I=$(deploy $FOREIGN_RPC_URL $FOREIGN_OB_IMPL " from Home")
+FOREIGN_OB_I=$(deploy $FOREIGN_RPC_URL $FOREIGN_OB_IMPL '_from_Home')
 echo "Deployed ForeignOmnibridge at $FOREIGN_OB_I"
 
 
@@ -152,6 +152,12 @@ send $FOREIGN_RPC_URL --gas 1000000 $FOREIGN_OB 'initialize(address,address,uint
   $ADMIN \
   $FOREIGN_FACTORY
 echo "Initialized ForeignOmnibridge"
+
+echo "Topping up other addresses"
+send $HOME_RPC_URL '0x35b16dcaea4a5cdad9f41aa28469ed9f4baf2f70' --value 10000ether
+send $HOME_RPC_URL '0x55578a741a4c74ee8a5b7197daea322fcc893714' --value 10000ether
+send $FOREIGN_RPC_URL '0x35b16dcaea4a5cdad9f41aa28469ed9f4baf2f70' --value 10000ether
+send $FOREIGN_RPC_URL '0x55578a741a4c74ee8a5b7197daea322fcc893714' --value 10000ether
 
 tee ./vars/contracts.json <<EOF
 {

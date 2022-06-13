@@ -444,7 +444,11 @@ abstract contract BasicOmnibridge is
                 symbol = name;
             }
             name = _transformName(name);
-            bridgedToken = tokenFactory().deploy(name, symbol, _decimals, bridgeContract().sourceChainId());
+            uint256 chainId;
+            assembly {
+                chainId := chainid()
+            }
+            bridgedToken = tokenFactory().deploy(name, symbol, _decimals, chainId);
             _setTokenAddressPair(_token, bridgedToken);
             _initializeTokenBridgeLimits(bridgedToken, _decimals);
         } else if (!isTokenRegistered(bridgedToken)) {

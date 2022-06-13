@@ -10,11 +10,11 @@ CONTRACTS=./vars/contracts.json
 EXECUTOR_IMAGE=kirillfedoseev/trustless-amb-executor
 
 id=$(docker create -v $(pwd)/vars/keys:/tmp/keys $EXECUTOR_IMAGE \
-  --sourceRpc $HOME_RPC_URL \
-  --targetRpc $FOREIGN_RPC_URL \
-  --sourceAmb $(cat $CONTRACTS | jq -r .home.amb) \
-  --targetAmb $(cat $CONTRACTS | jq -r .foreign.amb) \
-  --targetLc $(cat $CONTRACTS | jq -r .foreign.light_client) \
+  --sourceRpc $FOREIGN_RPC_URL \
+  --targetRpc $HOME_RPC_URL \
+  --sourceAmb $(cat $CONTRACTS | jq -r .foreign.amb) \
+  --targetAmb $(cat $CONTRACTS | jq -r .home.amb) \
+  --targetLc $(cat $CONTRACTS | jq -r .home.light_client) \
   --keystore /tmp/keys/key_user.json \
   --keystorePass '' \
   --msgNonce $1)

@@ -17,6 +17,10 @@ contract LightClientConfig {
     uint256 internal constant CURRENT_SYNC_COMMITTEE_INDEX = 54;
     // get_generalized_index(BeaconState, 'next_sync_committee')
     uint256 internal constant NEXT_SYNC_COMMITTEE_INDEX = 55;
-    // get_generalized_index(BeaconState, 'latest_execution_payload_header', 'state_root')
-    uint256 internal constant EXECUTION_PAYLOAD_STATE_ROOT_INDEX = 898;
+    // get_generalized_index(BeaconState, 'latest_execution_payload_header')
+    uint256 internal constant EXECUTION_PAYLOAD_INDEX = 56;
+    // get_generalized_index(ExecutionPayloadHeader, 'state_root')
+    uint256 internal constant EXECUTION_PAYLOAD_STATE_ROOT_INDEX = 18;
+    // get_generalized_index(ExecutionPayloadHeader, 'block_number')
+    uint256 internal constant EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX = 22;
 }

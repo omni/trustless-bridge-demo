@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"log"
@@ -46,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	data, err := contractABI.Pack("headSlot")
+	data, err := contractABI.Pack("head")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -56,11 +57,10 @@ func main() {
 		Gas:  100000,
 		Data: data,
 	}, nil)
-	slotBN, err := contractABI.Unpack("headSlot", res)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	slot := slotBN[0].(*big.Int).Uint64()
+	slot := binary.BigEndian.Uint64(res[24:32])
 
 	ticker := time.NewTicker(*interval)
 	sender, err := NewTxSender(ctx, eth1Client, cfg.Eth1.Keystore, cfg.Eth1.KeystorePassword)

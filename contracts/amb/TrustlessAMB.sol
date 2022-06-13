@@ -3,6 +3,7 @@ pragma solidity 0.8.14;
 import "./interfaces/IAMBCallReceiver.sol";
 import "./interfaces/ITrustlessAMB.sol";
 import "./utils/MPT.sol";
+import "../light_client/LightClient.sol";
 
 contract TrustlessAMB is ITrustlessAMB, MPT {
     using RLPReader for RLPReader.RLPItem;
@@ -111,7 +112,7 @@ contract TrustlessAMB is ITrustlessAMB, MPT {
         emit ExecutedMessage(vars.msgHash, msgNonce, message, status);
     }
 
-    function headSlot() external view returns (uint256) {
-        return lightClient.headSlot();
+    function head() external view returns (IBeaconLightClient.HeadPointer memory) {
+        return lightClient.head();
     }
 }
