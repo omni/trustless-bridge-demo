@@ -13,16 +13,18 @@ abstract contract FailedMessagesProcessor is BasicAMBMediator, BridgeOperationsS
     /**
      * @dev Method to be called when a bridged message execution failed. It will generate a new message requesting to
      * fix/roll back the transferred assets on the other network.
-     * @param _messageId id of the message which execution failed.
+     * @param _message encoded message which execution failed.
      */
-    function requestFailedMessageFix(bytes32 _messageId) external {
+    function requestFailedMessageFix(bytes memory _message) external {
+        bytes32 messageId = keccak256(_message);
+        require(bridgeContract().executionStatus(messageId) == IAMB.ExecutionStatus.EXECUTION_FAILED);
+        (, address sender, address receiver, , ) = abi.decode(_message, (uint256, address, address, uint256, bytes));
         IAMB bridge = bridgeContract();
-        require(!bridge.messageCallStatus(_messageId));
-        require(bridge.failedMessageReceiver(_messageId) == address(this));
-        require(bridge.failedMessageSender(_messageId) == mediatorContractOnOtherSide());
+        require(receiver == address(this));
+        require(sender == mediatorContractOnOtherSide());
 
         bytes4 methodSelector = this.fixFailedMessage.selector;
-        bytes memory data = abi.encodeWithSelector(methodSelector, _messageId);
+        bytes memory data = abi.encodeWithSelector(methodSelector, messageId);
         _passMessage(data);
     }
 

@@ -2,16 +2,7 @@
 
 set -e
 
-SPEC_PRESET=mainnet
-VALIDATOR_COUNT=1024
-
-GENESIS_DELAY=240
-SECONDS_PER_SLOT=3
-GENESIS_FORK_VERSION=0x00000000
-BN_COUNT=2
-DEPOSIT_CONTRACT_ADDRESS=0x8544a851E56c754aae5126104A272CBb646aF5Ed
-FEE_RECEIVER_ADDRESS=0x087465d0ddc872fc27901e45c861e6956622eb66
-BOOTNODE_PORT=12000
+source ./vars/vars.env
 
 NOW=$(date +%s)
 GENESIS_TIME=$(expr $NOW + $GENESIS_DELAY)
@@ -20,13 +11,9 @@ HOME_DIR="$(pwd)/data/home"
 FOREIGN_DIR="$(pwd)/data/foreign"
 GETH_SECRET="$(pwd)/vars/jwtsecret"
 GETH_KEYSTORE="$(pwd)/vars/keys"
-GETH_IMAGE=kirillfedoseev/geth:v1.10.18-bls-dev-ttd
 
-LCLI_IMAGE=sigp/lcli:v2.3.0
 LCLI_HOME="docker run --network home --workdir $(pwd) --rm -v $(pwd):$(pwd) $LCLI_IMAGE lcli"
 LCLI_FOREIGN="docker run --network foreign --workdir $(pwd) --rm -v $(pwd):$(pwd) $LCLI_IMAGE lcli"
-
-LH_IMAGE=sigp/lighthouse:v2.3.0-modern
 
 function start_beacon_node() {
     docker run -d --name $6 -p $5:5052 -v $2:$2 -v $3:$3:ro -v $GETH_SECRET:/tmp/jwtsecret --network $1 \
@@ -44,7 +31,7 @@ function start_beacon_node() {
       --http-port 5052 \
       --disable-packet-filter \
       --target-peers $((BN_COUNT - 1)) \
-      --terminal-total-difficulty-override 1000 \
+      --terminal-total-difficulty-override $TARGET_TOTAL_DIFFICULTY \
       --eth1-endpoints http://geth-$1:8545 \
       --execution-endpoints http://geth-$1:8551 \
       --jwt-secrets /tmp/jwtsecret \
@@ -95,6 +82,7 @@ function start_geth() {
     --http --http.addr 0.0.0.0 --http.api net,eth,engine,debug --http.vhosts '*' --http.corsdomain '*' \
     --authrpc.port 8551 --authrpc.addr 0.0.0.0 --authrpc.vhosts '*' --authrpc.jwtsecret /tmp/jwtsecret \
     --dev.period $SECONDS_PER_SLOT --gcmode archive \
+    --override.terminaltotaldifficulty $TARGET_TOTAL_DIFFICULTY \
     --keystore /tmp/keys
 }
 
@@ -133,13 +121,13 @@ function prepare_validators() {
 docker network create --subnet=192.168.0.0/20 home || true
 docker network create --subnet=192.168.16.0/20 foreign || true
 
-start_geth home 8545 1337
-start_geth foreign 9545 137
+start_geth home 8545 $HOME_CHAIN_ID
+start_geth foreign 9545 $FOREIGN_CHAIN_ID
 
 sleep 3
 
-prepare_validators "$LCLI_HOME" home "$HOME_DIR" 1337
-prepare_validators "$LCLI_FOREIGN" foreign "$FOREIGN_DIR" 137
+prepare_validators "$LCLI_HOME" home "$HOME_DIR" $HOME_CHAIN_ID
+prepare_validators "$LCLI_FOREIGN" foreign "$FOREIGN_DIR" $FOREIGN_CHAIN_ID
 
 start_bootnode home $HOME_DIR/testnet bootnode-home 192.168.0.99
 start_bootnode foreign $FOREIGN_DIR/testnet bootnode-foreign 192.168.16.99
@@ -149,7 +137,7 @@ start_beacon_node home $HOME_DIR/datadir/node_2 $HOME_DIR/testnet 12000 5053 lh-
 start_beacon_node foreign $FOREIGN_DIR/datadir/node_1 $FOREIGN_DIR/testnet 12000 6052 lh-foreign-1
 start_beacon_node foreign $FOREIGN_DIR/datadir/node_2 $FOREIGN_DIR/testnet 12000 6053 lh-foreign-2
 
-start_validator_client home $HOME_DIR/datadir/node_1 $HOME_DIR/testnet http://lh-home-1:5052 lh-home-vc-1
-start_validator_client home $HOME_DIR/datadir/node_2 $HOME_DIR/testnet http://lh-home-2:5052 lh-home-vc-2
-start_validator_client foreign $FOREIGN_DIR/datadir/node_1 $FOREIGN_DIR/testnet http://lh-foreign-1:5052 lh-foreign-vc-1
-start_validator_client foreign $FOREIGN_DIR/datadir/node_2 $FOREIGN_DIR/testnet http://lh-foreign-2:5052 lh-foreign-vc-2
+start_validator_client home $HOME_DIR/datadir/node_1 $HOME_DIR/testnet $HOME_BN_URL_DOCKER lh-home-vc-1
+start_validator_client home $HOME_DIR/datadir/node_2 $HOME_DIR/testnet $HOME_BN2_URL_DOCKER lh-home-vc-2
+start_validator_client foreign $FOREIGN_DIR/datadir/node_1 $FOREIGN_DIR/testnet $FOREIGN_BN_URL_DOCKER lh-foreign-vc-1
+start_validator_client foreign $FOREIGN_DIR/datadir/node_2 $FOREIGN_DIR/testnet $FOREIGN_BN2_URL_DOCKER lh-foreign-vc-2

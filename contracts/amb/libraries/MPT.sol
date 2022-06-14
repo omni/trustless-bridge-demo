@@ -2,9 +2,8 @@ pragma solidity 0.8.14;
 
 import "./RLPReader.sol";
 
-contract MPT {
+library MPT {
     using RLPReader for RLPReader.RLPItem;
-    using RLPReader for RLPReader.Iterator;
     using RLPReader for bytes;
 
     function _nibble(bytes32 key, uint256 index) private pure returns (uint256 nibble) {
@@ -15,17 +14,16 @@ contract MPT {
     }
 
     function _decodePathLength(bytes memory path) private pure returns (uint256, bool) {
-        uint256 nibble = uint256(uint8(path[0]));
+        uint256 nibble = uint256(uint8(path[0])) / 16;
         return ((path.length-1)*2 + nibble%2, nibble > 1);
     }
 
-    function _verifyMPTProof(
+    function verifyMPTProof(
         bytes32 root,
         bytes32 key,
         bytes[] memory proof
     ) internal pure returns (bytes memory) {
         uint256 currentPathLength = 0;
-        bytes32 currentHash = root;
         for (uint256 i = 0; i < proof.length; i++) {
             bytes memory node = proof[i];
             bytes32 hash = keccak256(node);

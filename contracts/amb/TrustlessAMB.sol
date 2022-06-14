@@ -1,53 +1,26 @@
 pragma solidity 0.8.14;
 
-import "./interfaces/IAMBCallReceiver.sol";
-import "./interfaces/ITrustlessAMB.sol";
-import "./utils/MPT.sol";
+import "./libraries/MPT.sol";
+import "./TrustlessAMBStorage.sol";
+import "./proxy/EIP1967Admin.sol";
 import "../light_client/LightClient.sol";
 
-contract TrustlessAMB is ITrustlessAMB, MPT {
+contract TrustlessAMB is TrustlessAMBStorage, EIP1967Admin {
     using RLPReader for RLPReader.RLPItem;
-    using RLPReader for RLPReader.Iterator;
     using RLPReader for bytes;
 
-    mapping(uint256 => bytes32) public sentMessages;
-    mapping(bytes32 => bool) public executedMessages;
-    mapping(bytes32 => bool) public messageCallStatus;
-
-    IBeaconLightClient public lightClient;
-
-    address public otherSideTrustlessAMB;
-
-    uint256 nonce;
-
-    address public messageSender;
-    bytes32 public messageId;
-    uint256 public maxGasPerTx;
-
-    address public owner;
-
-    event SentMessage(bytes32 indexed msgHash, uint256 indexed nonce, bytes message);
-    event ExecutedMessage(bytes32 indexed msgHash, uint256 indexed nonce, bytes message, bool status);
-
-    constructor (address newLightClient) {
-        owner = msg.sender;
+    function initialize(address newLightClient, uint256 newMaxGasPerTx, address otherSideAMB) external {
         lightClient = IBeaconLightClient(newLightClient);
-        maxGasPerTx = 2000000;
+        maxGasPerTx = newMaxGasPerTx;
+        otherSideImage = keccak256(abi.encodePacked(otherSideAMB));
     }
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Ownable: not an owner");
-        _;
-    }
-
-    function setOtherSideTrustlessAMB(address newOtherSideTrustlessAMB) external onlyOwner {
-        otherSideTrustlessAMB = newOtherSideTrustlessAMB;
-    }
-
-    function requireToPassMessage(address receiver,
+    function requireToPassMessage(
+        address receiver,
         bytes calldata data,
         uint256 gasLimit
     ) external returns (bytes32) {
+        require(gasLimit <= maxGasPerTx, "TrustlessAMB: exceed gas limit");
         bytes memory message = abi.encode(
             nonce,
             msg.sender,
@@ -77,42 +50,53 @@ contract TrustlessAMB is ITrustlessAMB, MPT {
     ) external returns (bool status) {
         ExecuteMessageVars memory vars;
         vars.msgHash = keccak256(message);
-        require(!executedMessages[vars.msgHash], "TrustlessAMB: message already executed");
+        require(executionStatus[vars.msgHash] == ExecutionStatus.NOT_EXECUTED, "TrustlessAMB: message already executed");
 
         vars.stateRoot = lightClient.executionStateRootByBlockNumber(sourceBlock);
 
         require(vars.stateRoot != bytes32(0), "TrustlessAMB: stateRoot is missing");
 
         {
-            bytes memory accountRLP = _verifyMPTProof(vars.stateRoot, keccak256(abi.encodePacked(otherSideTrustlessAMB)), accountProof);
+            bytes memory accountRLP = MPT.verifyMPTProof(vars.stateRoot, otherSideImage, accountProof);
             RLPReader.RLPItem[] memory ls = accountRLP.toRlpItem().toList();
             require(ls.length == 4, "TrustlessAMB: invalid account decoded from RLP");
             vars.storageRoot = bytes32(ls[2].toUint());
         }
 
-        (uint256 msgNonce, address sender, address receiver, uint256 gasLimit, bytes memory data) = abi.decode(message, (uint256, address, address, uint256, bytes));
+        (
+            uint256 msgNonce,
+            address sender,
+            address receiver,
+            uint256 gasLimit,
+            bytes memory data
+        ) = abi.decode(message, (uint256, address, address, uint256, bytes));
 
         {
+            // slot of sentMessages[msgNonce] = keccak256(keccak256(msgNonce . 0))
             bytes32 slotKey = keccak256(abi.encode(keccak256(abi.encode(msgNonce, 0))));
-            bytes memory slotValue = _verifyMPTProof(vars.storageRoot, slotKey, storageProof);
+            bytes memory slotValue = MPT.verifyMPTProof(vars.storageRoot, slotKey, storageProof);
             require(bytes32(slotValue.toRlpItem().toUint()) == vars.msgHash, "TrustlessAMB: invalid message hash");
         }
 
         {
-            bytes memory encodedData = abi.encodeWithSelector(IAMBCallReceiver.onAMBMessageExecution.selector, vars.msgHash, sender, data);
+            require(messageId == bytes32(0), "TrustlessAMB: different message execution in progress");
             messageId = vars.msgHash;
             messageSender = sender;
-            require(gasleft() > gasLimit + 20000, "TrustlessAMB: insufficient gas");
+            // ensure enough gas for the call + 3 SSTORE + event
+            require((gasleft() * 63) / 64 > gasLimit + 40000, "TrustlessAMB: insufficient gas");
             (status,) = receiver.call{gas: gasLimit}(data);
             messageId = bytes32(0);
             messageSender = address(0);
         }
-        executedMessages[vars.msgHash] = true;
-        messageCallStatus[vars.msgHash] = status;
+        executionStatus[vars.msgHash] = status ? ExecutionStatus.EXECUTION_SUCCEEDED : ExecutionStatus.EXECUTION_FAILED;
         emit ExecutedMessage(vars.msgHash, msgNonce, message, status);
     }
 
     function head() external view returns (IBeaconLightClient.HeadPointer memory) {
         return lightClient.head();
+    }
+
+    function messageCallStatus(bytes32 _messageId) external view returns (bool) {
+        return executionStatus[_messageId] == ExecutionStatus.EXECUTION_SUCCEEDED;
     }
 }

@@ -2,29 +2,12 @@
 
 set -e
 
-HOME_RPC_URL=http://localhost:8545
-FOREIGN_RPC_URL=http://localhost:9545
-HOME_BN_URL=http://localhost:5052
-FOREIGN_BN_URL=http://localhost:6052
-
-HOME_START_SLOT=0
-FOREIGN_START_SLOT=0
-LIGHT_CLIENT_UPDATE_TIMEOUT=5
-ADMIN="0x087465d0ddc872fc27901e45c861e6956622eb66"
-
-HOME_GENESIS_TIME=$(curl -s $HOME_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_time)
-HOME_GENESIS_VALIDATORS_ROOT=$(curl -s $HOME_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_validators_root)
-HOME_GENESIS_HEADER_DATA=$(curl -s $HOME_BN_URL/eth/v1/beacon/headers/$HOME_START_SLOT | jq .data.header.message | jq -r '[.slot,.proposer_index,.parent_root,.state_root,.body_root] | join(",")')
-FOREIGN_GENESIS_TIME=$(curl -s $FOREIGN_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_time)
-FOREIGN_GENESIS_VALIDATORS_ROOT=$(curl -s $FOREIGN_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_validators_root)
-FOREIGN_GENESIS_HEADER_DATA=$(curl -s $FOREIGN_BN_URL/eth/v1/beacon/headers/$FOREIGN_START_SLOT | jq .data.header.message | jq -r '[.slot,.proposer_index,.parent_root,.state_root,.body_root] | join(",")')
-
-EMPTY_ROOT="0x0000000000000000000000000000000000000000000000000000000000000000"
-EMPTY_ADDRESS="0x0000000000000000000000000000000000000000"
+source ./vars/vars.env
 
 CONTRACTS=../contracts
 LIGHT_CLIENT=$CONTRACTS/light_client/LightClient.sol:LightClient
 TRUSTLESS_AMB=$CONTRACTS/amb/TrustlessAMB.sol:TrustlessAMB
+EIP1967_PROXY=$CONTRACTS/amb/proxy/EIP1967Proxy.sol:EIP1967Proxy
 WETH=$CONTRACTS/omnibridge/mocks/WETH.sol:WETH
 PROXY=$CONTRACTS/omnibridge/upgradeability/EternalStorageProxy.sol:EternalStorageProxy
 TOKEN_IMAGE=$CONTRACTS/omnibridge/tokens/PermittableToken_flat.sol:PermittableToken
@@ -34,6 +17,13 @@ GAS_MANAGER=$CONTRACTS/omnibridge/upgradeable_contracts/modules/gas_limit/Select
 HOME_OB_IMPL=$CONTRACTS/omnibridge/upgradeable_contracts/HomeOmnibridge.sol:HomeOmnibridge
 FOREIGN_OB_IMPL=$CONTRACTS/omnibridge/upgradeable_contracts/ForeignOmnibridge.sol:ForeignOmnibridge
 WETH_ROUTER=$CONTRACTS/omnibridge/helpers/WETHOmnibridgeRouter.sol:WETHOmnibridgeRouter
+
+HOME_GENESIS_TIME=$(curl -s $HOME_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_time)
+HOME_GENESIS_VALIDATORS_ROOT=$(curl -s $HOME_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_validators_root)
+HOME_GENESIS_HEADER_DATA=$(curl -s $HOME_BN_URL/eth/v1/beacon/headers/$HOME_START_SLOT | jq .data.header.message | jq -r '[.slot,.proposer_index,.parent_root,.state_root,.body_root] | join(",")')
+FOREIGN_GENESIS_TIME=$(curl -s $FOREIGN_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_time)
+FOREIGN_GENESIS_VALIDATORS_ROOT=$(curl -s $FOREIGN_BN_URL/eth/v1/beacon/genesis | jq -r .data.genesis_validators_root)
+FOREIGN_GENESIS_HEADER_DATA=$(curl -s $FOREIGN_BN_URL/eth/v1/beacon/headers/$FOREIGN_START_SLOT | jq .data.header.message | jq -r '[.slot,.proposer_index,.parent_root,.state_root,.body_root] | join(",")')
 
 function deploy() {
   RPC_URL=$1
@@ -56,25 +46,35 @@ function send() {
 echo "Deploying LightClient pair"
 
 HOME_LIGHT_CLIENT=$(deploy $HOME_RPC_URL $LIGHT_CLIENT \
-  $FOREIGN_GENESIS_VALIDATORS_ROOT $FOREIGN_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($FOREIGN_GENESIS_HEADER_DATA,0,$EMPTY_ROOT)")
+  $FOREIGN_GENESIS_VALIDATORS_ROOT $FOREIGN_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($FOREIGN_GENESIS_HEADER_DATA,0,$(cast hz))")
 echo "Deployed Home LightClient at $HOME_LIGHT_CLIENT"
 
 FOREIGN_LIGHT_CLIENT=$(deploy $FOREIGN_RPC_URL $LIGHT_CLIENT \
-  $HOME_GENESIS_VALIDATORS_ROOT $HOME_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($HOME_GENESIS_HEADER_DATA,0,$EMPTY_ROOT)")
+  $HOME_GENESIS_VALIDATORS_ROOT $HOME_GENESIS_TIME $LIGHT_CLIENT_UPDATE_TIMEOUT "($HOME_GENESIS_HEADER_DATA,0,$(cast hz))")
 echo "Deployed Foreign LightClient at $FOREIGN_LIGHT_CLIENT"
 
 
+echo "Deploying TrustlessAMB implementations pair"
+
+HOME_AMB_I=$(deploy $HOME_RPC_URL $TRUSTLESS_AMB)
+FOREIGN_AMB_I=$(deploy $FOREIGN_RPC_URL $TRUSTLESS_AMB)
+
 echo "Deploying TrustlessAMB pair"
 
-HOME_AMB=$(deploy $HOME_RPC_URL $TRUSTLESS_AMB $HOME_LIGHT_CLIENT)
+HOME_AMB=$(cast compute-address --rpc-url $HOME_RPC_URL $ADMIN | cut -c18-)
+echo "Computed Home TrustlessAMB address: $HOME_AMB"
+
+FOREIGN_AMB=$(cast compute-address --rpc-url $FOREIGN_RPC_URL $ADMIN | cut -c18-)
+echo "Computed Foreign TrustlessAMB address: $FOREIGN_AMB"
+
+HOME_AMB_INIT_DATA=$(cast cd 'initialize(address,uint256,address)' $HOME_LIGHT_CLIENT 2000000 $FOREIGN_AMB)
+FOREIGN_AMB_INIT_DATA=$(cast cd 'initialize(address,uint256,address)' $FOREIGN_LIGHT_CLIENT 2000000 $HOME_AMB)
+
+HOME_AMB=$(deploy $HOME_RPC_URL $EIP1967_PROXY $ADMIN $HOME_AMB_I $HOME_AMB_INIT_DATA)
 echo "Deployed Home TrustlessAMB at $HOME_AMB"
 
-FOREIGN_AMB=$(deploy $FOREIGN_RPC_URL $TRUSTLESS_AMB $FOREIGN_LIGHT_CLIENT)
+FOREIGN_AMB=$(deploy $FOREIGN_RPC_URL $EIP1967_PROXY $ADMIN $FOREIGN_AMB_I $FOREIGN_AMB_INIT_DATA)
 echo "Deployed Foreign TrustlessAMB at $FOREIGN_AMB"
-
-echo "Setting other side AMB contract addresses"
-send $HOME_RPC_URL $HOME_AMB 'setOtherSideTrustlessAMB(address)' $FOREIGN_AMB
-send $FOREIGN_RPC_URL $FOREIGN_AMB 'setOtherSideTrustlessAMB(address)' $HOME_AMB
 
 
 echo "Deploying WETH token pair"
@@ -92,9 +92,9 @@ echo "Deployed Foreign EternalStorageProxy at $FOREIGN_OB"
 
 
 echo "Deploying TokenImage pair"
-HOME_TOKEN_IMAGE=$(deploy $HOME_RPC_URL $TOKEN_IMAGE "TokenImage" "IMG" 18 1337)
+HOME_TOKEN_IMAGE=$(deploy $HOME_RPC_URL $TOKEN_IMAGE "TokenImage" "IMG" 18 $HOME_CHAIN_ID)
 echo "Deployed Home TokenImage at $HOME_TOKEN_IMAGE"
-FOREIGN_TOKEN_IMAGE=$(deploy $FOREIGN_RPC_URL $TOKEN_IMAGE "TokenImage" "IMG" 18 137)
+FOREIGN_TOKEN_IMAGE=$(deploy $FOREIGN_RPC_URL $TOKEN_IMAGE "TokenImage" "IMG" 18 $FOREIGN_CHAIN_ID)
 echo "Deployed Foreign TokenImage at $FOREIGN_TOKEN_IMAGE"
 
 
@@ -136,10 +136,10 @@ send $HOME_RPC_URL --gas 1000000 $HOME_OB 'initialize(address,address,uint256[3]
   $FOREIGN_OB \
   "[$(cast tw 100),$(cast tw 10),$(cast tw 0.001)]" \
   "[$(cast tw 100),$(cast tw 10)]" \
-  $EMPTY_ADDRESS \
+  $(cast az) \
   $ADMIN \
   $HOME_FACTORY \
-  $EMPTY_ADDRESS
+  $(cast az)
 echo "Initialized HomeOmnibridge"
 
 echo "Initializing ForeignOmnibridge"
@@ -154,26 +154,20 @@ send $FOREIGN_RPC_URL --gas 1000000 $FOREIGN_OB 'initialize(address,address,uint
 echo "Initialized ForeignOmnibridge"
 
 echo "Topping up other addresses"
-send $HOME_RPC_URL '0x35b16dcaea4a5cdad9f41aa28469ed9f4baf2f70' --value 10000ether
-send $HOME_RPC_URL '0x55578a741a4c74ee8a5b7197daea322fcc893714' --value 10000ether
-send $FOREIGN_RPC_URL '0x35b16dcaea4a5cdad9f41aa28469ed9f4baf2f70' --value 10000ether
-send $FOREIGN_RPC_URL '0x55578a741a4c74ee8a5b7197daea322fcc893714' --value 10000ether
+send $HOME_RPC_URL $ORACLE --value 10000ether
+send $HOME_RPC_URL $USER --value 10000ether
+send $FOREIGN_RPC_URL $ORACLE --value 10000ether
+send $FOREIGN_RPC_URL $USER --value 10000ether
 
-tee ./vars/contracts.json <<EOF
-{
-  "home": {
-    "light_client": "$HOME_LIGHT_CLIENT",
-    "amb": "$HOME_AMB",
-    "ob": "$HOME_OB",
-    "weth": "$HOME_WETH",
-    "weth_router": "$HOME_ROUTER"
-  },
-  "foreign": {
-    "light_client": "$FOREIGN_LIGHT_CLIENT",
-    "amb": "$FOREIGN_AMB",
-    "ob": "$FOREIGN_OB",
-    "weth": "$FOREIGN_WETH",
-    "weth_router": "$FOREIGN_ROUTER"
-  }
-}
+tee ./vars/contracts.env <<EOF
+HOME_LIGHT_CLIENT=$HOME_LIGHT_CLIENT
+HOME_AMB=$HOME_AMB
+HOME_OB=$HOME_OB
+HOME_WETH=$HOME_WETH
+HOME_ROUTER=$HOME_ROUTER
+FOREIGN_LIGHT_CLIENT=$FOREIGN_LIGHT_CLIENT
+FOREIGN_AMB=$FOREIGN_AMB
+FOREIGN_OB=$FOREIGN_OB
+FOREIGN_WETH=$FOREIGN_WETH
+FOREIGN_ROUTER=$FOREIGN_ROUTER
 EOF

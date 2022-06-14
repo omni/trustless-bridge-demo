@@ -9,29 +9,10 @@ contract LightClient is CryptoUtils {
     uint256 public immutable GENESIS_TIME;
     uint256 public immutable UPDATE_TIMEOUT;
 
-    struct HeadPointer {
-        uint64 slot;
-        uint64 executionBlockNumber;
-    }
-    HeadPointer public head; // slot of latest known block + associated execution block number
-    mapping(uint256 => StorageBeaconBlockHeader) public headers; // slot => header
+    IBeaconLightClient.HeadPointer public head; // slot of latest known block + associated execution block number
+    mapping(uint256 => IBeaconLightClient.StorageBeaconBlockHeader) public headers; // slot => header
 
-    struct BestValidUpdate {
-        uint64 slot;
-        uint64 executionBlockNumber;
-        uint64 signatures;
-        uint64 timeout;
-        bytes32 root;
-        bytes32 stateRoot;
-        bytes32 executionStateRoot;
-    }
-    BestValidUpdate public bestValidUpdate;
-
-    struct StorageBeaconBlockHeader {
-        bytes32 root;
-        bytes32 stateRoot;
-        bytes32 executionStateRoot;
-    }
+    IBeaconLightClient.BestValidUpdate public bestValidUpdate;
 
     struct BeaconBlockHeader {
         uint64 slot;
@@ -90,8 +71,8 @@ contract LightClient is CryptoUtils {
         GENESIS_TIME = genesisTime;
         UPDATE_TIMEOUT = updateTimeout;
         _setHead(
-            HeadPointer(startHeader.slot, startHeader.executionBlockNumber),
-            StorageBeaconBlockHeader(_headerRoot(startHeader), startHeader.stateRoot, startHeader.executionStateRoot)
+            IBeaconLightClient.HeadPointer(startHeader.slot, startHeader.executionBlockNumber),
+            IBeaconLightClient.StorageBeaconBlockHeader(_headerRoot(startHeader), startHeader.stateRoot, startHeader.executionStateRoot)
         );
     }
 
@@ -159,8 +140,15 @@ contract LightClient is CryptoUtils {
         bytes32 signRoot = sha256(abi.encodePacked(attestedRoot, domainRoot));
         require(verifyBLSSignature(signRoot, aggregatedPK, update.syncAggregateSignature), "Invalid signature");
 
-        HeadPointer memory newHead = HeadPointer(activeHeader.slot, activeHeader.executionBlockNumber);
-        StorageBeaconBlockHeader memory compactHeader = StorageBeaconBlockHeader(activeRoot, activeHeader.stateRoot, activeHeader.executionStateRoot);
+        IBeaconLightClient.HeadPointer memory newHead = IBeaconLightClient.HeadPointer(
+            activeHeader.slot,
+            activeHeader.executionBlockNumber
+        );
+        IBeaconLightClient.StorageBeaconBlockHeader memory compactHeader = IBeaconLightClient.StorageBeaconBlockHeader(
+            activeRoot,
+            activeHeader.stateRoot,
+            activeHeader.executionStateRoot
+        );
         if (3 * count >= 2 * SYNC_COMMITTEE_SIZE && hasFinalityProof) {
             _setHead(newHead, compactHeader);
         } else {
@@ -174,7 +162,7 @@ contract LightClient is CryptoUtils {
 
     function applyCandidate() external {
         uint64 slot = bestValidUpdate.slot;
-        StorageBeaconBlockHeader memory _header = StorageBeaconBlockHeader(
+        IBeaconLightClient.StorageBeaconBlockHeader memory _header = IBeaconLightClient.StorageBeaconBlockHeader(
             bestValidUpdate.root,
             bestValidUpdate.stateRoot,
             bestValidUpdate.executionStateRoot
@@ -184,17 +172,17 @@ contract LightClient is CryptoUtils {
         require(_curSlot() > slot + SLOTS_PER_SYNC_COMMITTEE_PERIOD, "Waiting for sync period to end");
         require(bestValidUpdate.timeout < block.timestamp, "Waiting for UPDATE_TIMEOUT");
 
-        _setHead(HeadPointer(slot, bestValidUpdate.executionBlockNumber), _header);
+        _setHead(IBeaconLightClient.HeadPointer(slot, bestValidUpdate.executionBlockNumber), _header);
     }
 
-    function _setHead(HeadPointer memory _head, StorageBeaconBlockHeader memory _header) internal {
+    function _setHead(IBeaconLightClient.HeadPointer memory _head, IBeaconLightClient.StorageBeaconBlockHeader memory _header) internal {
         head = _head;
         headers[_head.slot] = _header;
         emit HeadUpdated(_head.slot, _header.root);
     }
 
-    function _setCandidate(HeadPointer memory _head, StorageBeaconBlockHeader memory _header, uint256 _signatures) internal {
-        bestValidUpdate = BestValidUpdate(
+    function _setCandidate(IBeaconLightClient.HeadPointer memory _head, IBeaconLightClient.StorageBeaconBlockHeader memory _header, uint256 _signatures) internal {
+        bestValidUpdate = IBeaconLightClient.BestValidUpdate(
             _head.slot,
             _head.executionBlockNumber,
             uint64(_signatures),

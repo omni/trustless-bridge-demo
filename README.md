@@ -12,7 +12,7 @@ Messages are being recorded in state mapping, so that the can be later proven on
 ### Infrastructure
 * EVM layer - Modified go-ethereum with enabled BLS EIP2537 precompiles.
 * Beacon layer - 2 Lighthouse BN + VC for each side with 512 validators.
-* Merge - configured to happen at slot 0 in the beacon chain, TTD is 1000 (~500 block in EVM).
+* Merge - configured to happen at slot 0 in the beacon chain, TTD is 300 (~150 block in EVM).
 ### Oracles
 * Light client updater - `./oracle` - worker responsible for generating Light Client proofs and their on-chain execution.
 * AMB executor - `./executor` - worker for executing sent AMB messages.
@@ -37,14 +37,14 @@ All containers are associated either with `home` or `foreign` docker bridge netw
 ```
 
 For each network, the following infrastructure is being launched:
-* 1 Geth with enabled BLS opcodes, TTD 1000
+* 1 Geth with enabled BLS opcodes, TTD 300
 * 1 Lighthouse Bootnode
 * 2 Lighthouse Beacon Nodes
 * 2 Lighthouse Validator Clients with 512 validators each
 
 The genesis event will happen in ~2 minutes after the script completion.
 Please check the logs of `lh-home-1`/`lh-foreign-1` containers to see the progress.
-The merge with the EVM layer will happen on the ~500 EL block number.
+The merge with the EVM layer will happen on the ~150 EL block number.
 
 Home JSON RPC: `http://localhost:8545`
 Foreign JSON RPC: `http://localhost:9545`
@@ -56,7 +56,7 @@ This script deploys and initializes all necessary smart contract on both network
 ```shell
 ./scripts/setup.sh
 ```
-Deployed contract addresses are written to `./vars/contracts.json` after deployment.
+Deployed contract addresses are written to `./vars/contracts.env` after deployment.
 All scripts below will automatically use this file for gathering relevant contract addresses.
 
 ### Send tokens through Omnibridge + AMB

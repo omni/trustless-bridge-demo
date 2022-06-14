@@ -1,6 +1,13 @@
 pragma solidity 0.7.5;
 
 interface IAMB {
+    enum ExecutionStatus {
+        NOT_EXECUTED,
+        INVALID,
+        EXECUTION_FAILED,
+        EXECUTION_SUCCEEDED
+    }
+
     event UserRequestForAffirmation(bytes32 indexed messageId, bytes encodedData);
     event UserRequestForSignature(bytes32 indexed messageId, bytes encodedData);
     event AffirmationCompleted(
@@ -44,4 +51,6 @@ interface IAMB {
     function sourceChainId() external view returns (uint256);
 
     function destinationChainId() external view returns (uint256);
+
+    function executionStatus(bytes32 _messageId) external view returns (ExecutionStatus);
 }

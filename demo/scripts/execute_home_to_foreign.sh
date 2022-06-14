@@ -2,19 +2,15 @@
 
 set -e
 
-HOME_RPC_URL=http://geth-home:8545
-FOREIGN_RPC_URL=http://geth-foreign:8545
-
-CONTRACTS=./vars/contracts.json
-
-EXECUTOR_IMAGE=kirillfedoseev/trustless-amb-executor
+source ./vars/vars.env
+source ./vars/contracts.env
 
 id=$(docker create -v $(pwd)/vars/keys:/tmp/keys $EXECUTOR_IMAGE \
-  --sourceRpc $HOME_RPC_URL \
-  --targetRpc $FOREIGN_RPC_URL \
-  --sourceAmb $(cat $CONTRACTS | jq -r .home.amb) \
-  --targetAmb $(cat $CONTRACTS | jq -r .foreign.amb) \
-  --targetLc $(cat $CONTRACTS | jq -r .foreign.light_client) \
+  --sourceRpc $HOME_RPC_URL_DOCKER \
+  --targetRpc $FOREIGN_RPC_URL_DOCKER \
+  --sourceAmb $HOME_AMB \
+  --targetAmb $FOREIGN_AMB \
+  --targetLc $FOREIGN_LIGHT_CLIENT \
   --keystore /tmp/keys/key_user.json \
   --keystorePass '' \
   --msgNonce $1)

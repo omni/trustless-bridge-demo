@@ -2,14 +2,8 @@
 
 set -e
 
-HOME_RPC_URL=http://geth-home:8545
-FOREIGN_RPC_URL=http://geth-foreign:8545
-HOME_BN_URL=http://lh-home-1:5052
-FOREIGN_BN_URL=http://lh-foreign-1:5052
-
-CONTRACTS=./vars/contracts.json
-
-WORKER_IMAGE=kirillfedoseev/light-client-worker:latest
+source ./vars/vars.env
+source ./vars/contracts.env
 
 function write_config() {
   cat <<EOF
@@ -35,8 +29,8 @@ function start_worker() {
 docker stop home-to-foreign-worker foreign-to-home-worker 2>/dev/null || true
 docker rm home-to-foreign-worker foreign-to-home-worker 2>/dev/null || true
 
-write_config $FOREIGN_RPC_URL $(cat $CONTRACTS | jq -r .foreign.light_client) $HOME_BN_URL > ./vars/config.foreign.yml
-write_config $HOME_RPC_URL $(cat $CONTRACTS | jq -r .home.light_client) $FOREIGN_BN_URL > ./vars/config.home.yml
+write_config $FOREIGN_RPC_URL_DOCKER $FOREIGN_LIGHT_CLIENT $HOME_BN_URL_DOCKER > ./vars/config.foreign.yml
+write_config $HOME_RPC_URL_DOCKER $HOME_LIGHT_CLIENT $FOREIGN_BN_URL_DOCKER > ./vars/config.home.yml
 
 start_worker home-to-foreign-worker $(pwd)/vars/config.foreign.yml 10s
 start_worker foreign-to-home-worker $(pwd)/vars/config.home.yml 10s

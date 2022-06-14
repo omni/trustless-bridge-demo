@@ -2,10 +2,8 @@
 
 set -e
 
-HOME_RPC_URL=http://localhost:8545
-FOREIGN_RPC_URL=http://localhost:9545
-
-CONTRACTS=./vars/contracts.json
+source ./vars/vars.env
+source ./vars/contracts.env
 
 cast send --keystore $(pwd)/vars/keys/key_user.json --password '' --rpc-url $FOREIGN_RPC_URL --gas 1000000 \
-  --value 1ether $(cat $CONTRACTS | jq -r .foreign.weth_router) 'wrapAndRelayTokens()'
+  --value 1ether $FOREIGN_ROUTER 'wrapAndRelayTokens()'
