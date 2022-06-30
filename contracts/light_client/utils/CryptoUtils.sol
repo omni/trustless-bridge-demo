@@ -14,25 +14,22 @@ contract CryptoUtils is BLS12381, LightClientConfig {
         return res;
     }
 
-    function _aggregatePubkeys(
+    function _aggregateRemainingPubkeys(
         G1Point[SYNC_COMMITTEE_SIZE] memory pks,
+        G1Point memory aggregatedPK,
         bytes32[SYNC_COMMITTEE_BIT_LIST_WORDS_SIZE] memory aggregationBitList
     ) internal returns (uint256, G1Point memory) {
-        G1Point memory result;
-        uint256 count = 0;
+        G1Point memory result = aggregatedPK;
+        uint256 count = SYNC_COMMITTEE_SIZE;
         uint256 word = 0;
         for (uint256 i = 0; i < SYNC_COMMITTEE_SIZE; i++) {
             uint256 m = i & 0xff;
             if (m == 0) {
                 word = uint256(aggregationBitList[i >> 8]);
             }
-            if (word & (1 << m) > 0) {
-                if (count == 0) {
-                    result = pks[i];
-                } else {
-                    result = addG1(result, pks[i]);
-                }
-                count++;
+            if (word & (1 << m) == 0) {
+                result = addG1(result, pks[i]);
+                count--;
             }
         }
         return (count, result);

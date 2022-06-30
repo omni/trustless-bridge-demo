@@ -128,17 +128,23 @@ contract LightClient is CryptoUtils {
         restoredStateRoot = _restoreMerkleRoot(restoredStateRoot, EXECUTION_PAYLOAD_INDEX, update.executionPayloadBranch);
         require(restoredStateRoot == activeHeader.stateRoot, "Cannot verify execution state root proof");
 
+        // aggregate sync committee pub keys
+        (uint256 count, G1Point memory aggregatedPK) = _aggregateRemainingPubkeys(
+            update.syncCommittee,
+            update.syncCommitteeAggregated,
+            update.syncAggregateBitList
+        );
+        require(count >= MIN_SYNC_COMMITTEE_PARTICIPANTS, "Not enough signatures");
+
         // verify that given sync committee is in the latest known block
-        bytes32 syncCommitteeRoot = _hashSyncCommittee(update.syncCommittee, update.syncCommitteeAggregated);
+        bytes32 syncCommitteeRoot = _hashSyncCommittee(update.syncCommittee, aggregatedPK);
         restoredStateRoot = _restoreMerkleRoot(syncCommitteeRoot, syncCommitteeIndex, update.syncCommitteeBranch);
         require(headers[head.slot].stateRoot == restoredStateRoot, "Cannot verify sync committee proof");
 
         // verify sync committee signature
-        (uint256 count, G1Point memory aggregatedPK) = _aggregatePubkeys(update.syncCommittee, update.syncAggregateBitList);
-        require(count >= MIN_SYNC_COMMITTEE_PARTICIPANTS, "Not enough signatures");
         bytes32 domainRoot = _syncDomainRoot(update.forkVersion);
         bytes32 signRoot = sha256(abi.encodePacked(attestedRoot, domainRoot));
-        require(verifyBLSSignature(signRoot, aggregatedPK, update.syncAggregateSignature), "Invalid signature");
+        require(verifyBLSSignature(signRoot, update.syncCommitteeAggregated, update.syncAggregateSignature), "Invalid signature");
 
         IBeaconLightClient.HeadPointer memory newHead = IBeaconLightClient.HeadPointer(
             activeHeader.slot,

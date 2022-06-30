@@ -175,7 +175,7 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	update := &Update{
 		ForkVersion:             forkVersion,
 		AttestedHeader:          attestedHeader,
-		SyncCommitteeAggregated: PkToG1(cmt.AggregateKey),
+		SyncCommitteeAggregated: PkToG1(pk),
 		SyncAggregateSignature:  SigToG2(sig),
 		SyncCommitteeBranch:     proof.Path,
 		FinalityBranch:          []common.Hash{},
