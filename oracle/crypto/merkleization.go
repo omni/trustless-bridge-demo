@@ -99,6 +99,12 @@ func (t *MerkleTree) MakeProof(idx int) *MerkleProof {
 		}
 		genIdx /= 2
 	}
+	if t.isList {
+		return &MerkleProof{
+			genIndex: idx + t.limit*2,
+			Path:     append(path, UintToHash(uint64(t.length))),
+		}
+	}
 	return &MerkleProof{
 		genIndex: idx + t.limit,
 		Path:     path,

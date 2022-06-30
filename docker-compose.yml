@@ -3,6 +3,3 @@ services:
   oracle:
     image: kirillfedoseev/light-client-worker
     build: oracle
-  executor:
-    image: kirillfedoseev/trustless-amb-executor
-    build: executor

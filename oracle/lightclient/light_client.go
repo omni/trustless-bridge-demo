@@ -49,6 +49,7 @@ func NewLightClient(cfg config.Eth2Config, finality bool) (*LightClient, error) 
 			ValidatorRegistryLimit:       spec.ValidatorRegistryLimit,
 			HistoricalRootsLimit:         spec.HistoricalRootsLimit,
 			EpochsPerEth1VotingPeriod:    spec.EpochsPerEth1VotingPeriod,
+			SlotsPerHistoricalRoot:       spec.SlotsPerHistoricalRoot,
 		}
 	}
 	if cfg.Genesis == nil {
@@ -208,13 +209,6 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 			return nil, nil
 		}
 	}
-	executionPayloadTree, err := c.getExecutionPayloadTree(state)
-	if err != nil {
-		return nil, fmt.Errorf("can't get execution payload merkle tree: %w", err)
-	}
-	update.ExecutionPayloadBranch = stateTree.MakeProof(24).Path
-	update.ExecutionStateRootBranch = executionPayloadTree.MakeProof(2).Path
-	update.ExecutionBlockNumberBranch = executionPayloadTree.MakeProof(6).Path
 	for _, pk := range cmt.PublicKeys {
 		update.SyncCommittee = append(update.SyncCommittee, PkToG1(pk))
 	}
@@ -229,32 +223,6 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 		update.SyncAggregateBitList = append(update.SyncAggregateBitList, common.BytesToHash(bits[k*32:k*32+32]))
 	}
 	return update, nil
-}
-
-func (c *LightClient) getExecutionPayloadTree(state *ethpb2.BeaconStateBellatrix) (*crypto.MerkleTree, error) {
-	header := state.LatestExecutionPayloadHeader
-	log.Println("Reconstructing execution payload merkle tree")
-	tree := crypto.NewVectorMerkleTree(
-		common.BytesToHash(header.ParentHash),
-		common.BytesToHash(append(header.FeeRecipient, make([]byte, 12)...)),
-		common.BytesToHash(header.StateRoot),
-		common.BytesToHash(header.ReceiptsRoot),
-		crypto.NewPackedVectorMerkleTree(header.LogsBloom).Hash(),
-		common.BytesToHash(header.PrevRandao),
-		crypto.UintToHash(header.BlockNumber),
-		crypto.UintToHash(header.GasLimit),
-		crypto.UintToHash(header.GasUsed),
-		crypto.UintToHash(header.Timestamp),
-		hashUint8List(header.ExtraData, 1),
-		common.BytesToHash(header.BaseFeePerGas),
-		common.BytesToHash(header.BlockHash),
-		common.BytesToHash(header.TransactionsRoot),
-	)
-	recRoot := tree.Hash()
-	if recRoot != MustHashTreeRoot(header) {
-		return nil, fmt.Errorf("failed to reconstruct given header root, %s != %s", recRoot, MustHashTreeRoot(header))
-	}
-	return tree, nil
 }
 
 func (c *LightClient) getBeaconState(slot uint64, stateRoot common.Hash) (*ethpb2.BeaconStateBellatrix, *crypto.MerkleTree, error) {

@@ -39,7 +39,7 @@ library MPT {
                 node = ls[1].toBytes();
                 currentPathLength += extensionPathLength;
                 if (isLeaf) {
-                    require(currentPathLength == 64, "MPT: invalid leaf path length");
+                    // require(currentPathLength == 64, "MPT: invalid leaf path length");
                     return node;
                 } else {
                     root = keccak256(node);

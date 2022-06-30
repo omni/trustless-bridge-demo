@@ -6,7 +6,8 @@ abstract contract TrustlessAMBStorage is ITrustlessAMB {
     mapping(uint256 => bytes32) public sentMessages;
     mapping(bytes32 => ExecutionStatus) public executionStatus;
 
-    IBeaconLightClient public lightClient;
+    ILightClientChain public chain;
+    address public otherSideAMB;
     bytes32 public otherSideImage;
 
     uint256 public nonce;

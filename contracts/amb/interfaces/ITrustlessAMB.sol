@@ -1,6 +1,6 @@
 pragma solidity 0.8.14;
 
-import "../../light_client/interfaces/IBeaconLightClient.sol";
+import "../../light_client/interfaces/ILightClientChain.sol";
 
 interface ITrustlessAMB {
     enum ExecutionStatus {
@@ -12,7 +12,7 @@ interface ITrustlessAMB {
     event SentMessage(bytes32 indexed msgHash, uint256 indexed nonce, bytes message);
     event ExecutedMessage(bytes32 indexed msgHash, uint256 indexed nonce, bytes message, bool status);
 
-    function lightClient() external view returns (IBeaconLightClient);
+    function chain() external view returns (ILightClientChain);
 
     function messageId() external view returns (bytes32);
 

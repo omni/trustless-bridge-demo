@@ -7,9 +7,23 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
-//go:embed abi.json
-var ABI []byte
+//go:embed amb_abi.json
+var ambABI []byte
 
-func LightClientABI() (abi.ABI, error) {
-	return abi.JSON(bytes.NewReader(ABI))
+//go:embed beacon_light_client_abi.json
+var beaconLightClientABI []byte
+
+//go:embed light_client_chain_abi.json
+var lightClientChainABI []byte
+
+func MustParseABI(raw []byte) abi.ABI {
+	res, err := abi.JSON(bytes.NewReader(raw))
+	if err != nil {
+		panic(err)
+	}
+	return res
 }
+
+var AMBABI = MustParseABI(ambABI)
+var BeaconLightClientABI = MustParseABI(beaconLightClientABI)
+var LightClientChainABI = MustParseABI(lightClientChainABI)

@@ -1,0 +1,574 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "genesisValidatorsRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "genesisTime",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "updateTimeout",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "slot",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "proposerIndex",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "parentRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "bodyRoot",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct LightClient.BeaconBlockHeader",
+        "name": "startHeader",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "slot",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "root",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "signatures",
+        "type": "uint256"
+      }
+    ],
+    "name": "CandidateUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "slot",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "root",
+        "type": "bytes32"
+      }
+    ],
+    "name": "HeadUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "GENESIS_TIME",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "GENESIS_VALIDATORS_ROOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MIN_SYNC_COMMITTEE_PARTICIPANTS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SECONDS_PER_SLOT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SLOTS_PER_EPOCH",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SLOTS_PER_SYNC_COMMITTEE_PERIOD",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SYNC_COMMITTEE_SIZE",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "UPDATE_TIMEOUT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "applyCandidate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "bestValidUpdate",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "slot",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "signatures",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "timeout",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "stateRoot",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      }
+    ],
+    "name": "executionStateRootByBlockNumber",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "head",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "slot",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "headers",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "stateRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "executionStateRoot",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes4",
+            "name": "forkVersion",
+            "type": "bytes4"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint64",
+                "name": "slot",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "proposerIndex",
+                "type": "uint64"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "parentRoot",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "stateRoot",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "bodyRoot",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct LightClient.BeaconBlockHeader",
+            "name": "attestedHeader",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint64",
+                "name": "slot",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "proposerIndex",
+                "type": "uint64"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "parentRoot",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "stateRoot",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "bodyRoot",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct LightClient.BeaconBlockHeader",
+            "name": "finalizedHeader",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "finalityBranch",
+            "type": "bytes32[]"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "components": [
+                      {
+                        "internalType": "uint256",
+                        "name": "a",
+                        "type": "uint256"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "b",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct BLS12381.Fp",
+                    "name": "a",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "uint256",
+                        "name": "a",
+                        "type": "uint256"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "b",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct BLS12381.Fp",
+                    "name": "b",
+                    "type": "tuple"
+                  }
+                ],
+                "internalType": "struct BLS12381.Fp2",
+                "name": "X",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "components": [
+                      {
+                        "internalType": "uint256",
+                        "name": "a",
+                        "type": "uint256"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "b",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct BLS12381.Fp",
+                    "name": "a",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "uint256",
+                        "name": "a",
+                        "type": "uint256"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "b",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct BLS12381.Fp",
+                    "name": "b",
+                    "type": "tuple"
+                  }
+                ],
+                "internalType": "struct BLS12381.Fp2",
+                "name": "Y",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct BLS12381.G2Point",
+            "name": "syncAggregateSignature",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32[2]",
+            "name": "syncAggregateBitList",
+            "type": "bytes32[2]"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "a",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "b",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BLS12381.Fp",
+                "name": "X",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "a",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "b",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BLS12381.Fp",
+                "name": "Y",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct BLS12381.G1Point[512]",
+            "name": "syncCommittee",
+            "type": "tuple[512]"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "a",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "b",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BLS12381.Fp",
+                "name": "X",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "a",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "b",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BLS12381.Fp",
+                "name": "Y",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct BLS12381.G1Point",
+            "name": "syncCommitteeAggregated",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "syncCommitteeBranch",
+            "type": "bytes32[]"
+          }
+        ],
+        "internalType": "struct LightClient.LightClientUpdate",
+        "name": "update",
+        "type": "tuple"
+      }
+    ],
+    "name": "step",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

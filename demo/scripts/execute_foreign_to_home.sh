@@ -5,12 +5,12 @@ set -e
 source ./vars/vars.env
 source ./vars/contracts.env
 
-id=$(docker create -v $(pwd)/vars/keys:/tmp/keys $EXECUTOR_IMAGE \
-  --sourceRpc $FOREIGN_RPC_URL_DOCKER \
-  --targetRpc $HOME_RPC_URL_DOCKER \
-  --sourceAmb $FOREIGN_AMB \
-  --targetAmb $HOME_AMB \
-  --targetLc $HOME_LIGHT_CLIENT \
+id=$(docker create -v $(pwd)/vars/keys:/tmp/keys --entrypoint ./amb/execute_storage $WORKER_IMAGE \
+  --sourceRPC $FOREIGN_RPC_URL_DOCKER \
+  --targetRPC $HOME_RPC_URL_DOCKER \
+  --sourceAMB $FOREIGN_AMB \
+  --targetAMB $HOME_AMB \
+  --targetLCChain $HOME_LIGHT_CLIENT_CHAIN \
   --keystore /tmp/keys/key_user.json \
   --keystorePass '' \
   --msgNonce $1)

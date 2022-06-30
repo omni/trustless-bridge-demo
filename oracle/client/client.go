@@ -5,13 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	ethpb2 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 )
 
@@ -44,44 +41,29 @@ func NewClient(baseUrl string) Eth2Client {
 
 func (b *BeaconClient) get(url string, out interface{}, ssz bool) error {
 	fullUrl := b.baseUrl + url
-	urlHash := crypto.Keccak256Hash([]byte(fullUrl)).String()
 	req, err := http.NewRequest("GET", fullUrl, nil)
 	if err != nil {
 		return fmt.Errorf("can't make request from url: %w", err)
 	}
 	if ssz {
-		if data, err := os.ReadFile("./cache/" + urlHash); err == nil {
-			log.Printf("received %d bytes ssz\n", len(data))
-			outSSZ := out.(interface{ UnmarshalSSZ(buf []byte) error })
-			err = outSSZ.UnmarshalSSZ(data)
-			if err != nil {
-				return fmt.Errorf("can't unmarshal ssz: %w", err)
-			}
-			return nil
-		}
 		req.Header.Set("Accept", "application/octet-stream")
 	}
 	res, err := b.c.Do(req)
 	if err != nil {
 		return fmt.Errorf("can't fetch from url: %w", err)
 	}
+	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		if res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusBadRequest {
 			return NotFoundError
 		}
 		return fmt.Errorf("got error status code: %d", res.StatusCode)
 	}
-	defer res.Body.Close()
 
 	if ssz {
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
 			return fmt.Errorf("can't read ssz: %w", err)
-		}
-		log.Printf("received %d bytes ssz\n", len(data))
-		err = os.WriteFile("./cache/"+urlHash, data, os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("can't write ssz file: %w", err)
 		}
 		outSSZ := out.(interface{ UnmarshalSSZ(buf []byte) error })
 		err = outSSZ.UnmarshalSSZ(data)
@@ -90,8 +72,7 @@ func (b *BeaconClient) get(url string, out interface{}, ssz bool) error {
 		}
 		return nil
 	}
-	decoder := json.NewDecoder(res.Body)
-	err = decoder.Decode(out)
+	err = json.NewDecoder(res.Body).Decode(out)
 	if err != nil {
 		return fmt.Errorf("can't parse json into %T: %w", out, err)
 	}

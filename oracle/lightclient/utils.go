@@ -32,13 +32,11 @@ func ConvertToSyncCommittee(cm *ethpb2.SyncCommittee) *SyncCommittee {
 
 func ConvertToHeader(block *ethpb2.BeaconBlockBellatrix) BeaconBlockHeader {
 	return BeaconBlockHeader{
-		Slot:                 uint64(block.Slot),
-		ProposerIndex:        uint64(block.ProposerIndex),
-		ParentRoot:           common.BytesToHash(block.ParentRoot),
-		StateRoot:            common.BytesToHash(block.StateRoot),
-		BodyRoot:             MustHashTreeRoot(block.Body),
-		ExecutionStateRoot:   common.BytesToHash(block.Body.ExecutionPayload.StateRoot),
-		ExecutionBlockNumber: block.Body.ExecutionPayload.BlockNumber,
+		Slot:          uint64(block.Slot),
+		ProposerIndex: uint64(block.ProposerIndex),
+		ParentRoot:    common.BytesToHash(block.ParentRoot),
+		StateRoot:     common.BytesToHash(block.StateRoot),
+		BodyRoot:      MustHashTreeRoot(block.Body),
 	}
 }
 

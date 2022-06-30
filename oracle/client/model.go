@@ -25,4 +25,5 @@ type ModelSpecData struct {
 	ValidatorRegistryLimit       int    `json:"VALIDATOR_REGISTRY_LIMIT,string"`
 	HistoricalRootsLimit         int    `json:"HISTORICAL_ROOTS_LIMIT,string"`
 	EpochsPerEth1VotingPeriod    uint64 `json:"EPOCHS_PER_ETH1_VOTING_PERIOD,string"`
+	SlotsPerHistoricalRoot       uint64 `json:"SLOTS_PER_HISTORICAL_ROOT,string"`
 }

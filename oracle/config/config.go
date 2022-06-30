@@ -48,6 +48,7 @@ type SpecConfig struct {
 	ValidatorRegistryLimit       int    `yaml:"VALIDATOR_REGISTRY_LIMIT"`
 	HistoricalRootsLimit         int    `yaml:"HISTORICAL_ROOTS_LIMIT"`
 	EpochsPerEth1VotingPeriod    uint64 `yaml:"EPOCHS_PER_ETH1_VOTING_PERIOD"`
+	SlotsPerHistoricalRoot       uint64 `yaml:"SLOTS_PER_HISTORICAL_ROOT"`
 }
 
 func ReadFromFile(file string) (*Config, error) {
