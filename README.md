@@ -17,6 +17,7 @@ Messages are being recorded in state mapping, so that the can be later proven on
 ### Oracles
 * Light client updater - `./oracle/cmd/light_client/worker` - worker responsible for generating Light Client proofs and their on-chain execution.
 * Light client chain prover - `./oracle/cmd/light_client_chain/prove` - script for proving full EL block structures in the EVM.
+* Light client chain status - `./oracle/cmd/light_client_chain/status` - script for checking sync status of the particular EL block.
 * AMB executor - `./oracle/cmd/amb/execute_storage` - worker for executing sent AMB messages through storage verification.
 * AMB executor - `./oracle/cmd/amb/execute_log` - worker for executing sent AMB messages through emitted log verification.
 
@@ -96,6 +97,18 @@ The given argument is the sent message nonce (incremented by one with each sent 
 ```shell
 ./scripts/execute_home_to_foreign.sh 0
 ./scripts/execute_foreign_to_home.sh 0
+```
+
+### Check status of the particular block synchronization
+Once you have sent some message that was included in some block on the execution layer side, you may track its sync progress via the command below.
+It will print few usefull numbers:
+* Slot number of the beacon block associated with the requested EL block
+* Slot number of the beacon block where the previous block was finalized
+* Current synced slot of the light client on the other side
+* Latest verified EL payload block in the LightClientChain contract on the other side
+```shell
+./scripts/status_home_to_foreign.sh <block_number>
+./scripts/status_foreign_to_home.sh <block_number>
 ```
 
 In order to execute the message, you must first wait until the far enough block header is verified by the Light Client worker.

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"flag"
 	"log"
 	"math/big"
@@ -12,14 +11,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb2 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 
-	"bls-sandbox/config"
-	"bls-sandbox/contract"
-	"bls-sandbox/crypto"
-	"bls-sandbox/lightclient"
-	"bls-sandbox/sender"
+	"oracle/config"
+	"oracle/contract"
+	"oracle/crypto"
+	"oracle/lightclient"
+	"oracle/sender"
 )
 
 var (
@@ -35,6 +32,8 @@ var (
 
 func main() {
 	flag.Parse()
+
+	ctx := context.Background()
 
 	lc, err := lightclient.NewLightClient(config.Eth2Config{
 		Client: config.HTTPClientConfig{
@@ -56,8 +55,7 @@ func main() {
 			log.Fatalln(err2)
 		}
 		addr := common.HexToAddress(*lightClientContract)
-		data, err2 := targetClient.CallContract(context.TODO(), ethereum.CallMsg{
-			From: common.Address{},
+		data, err2 := targetClient.CallContract(ctx, ethereum.CallMsg{
 			To:   &addr,
 			Data: headData,
 		}, nil)
@@ -79,7 +77,10 @@ func main() {
 	}
 	if *targetSlot == 0 || *targetSlot == *startSlot {
 		log.Printf("calling verifyExecutionPayload for slot %d\n", *startSlot)
-		state, stateTree := getState(lc, *startSlot)
+		state, stateTree, err2 := lc.GetBeaconState(*startSlot)
+		if err2 != nil {
+			log.Fatalln(err2)
+		}
 		proof1 := stateTree.MakeProof(24)
 		payload := NewExecutionPayload(state.LatestExecutionPayloadHeader)
 		data, err = contract.LightClientChainABI.Pack(
@@ -94,8 +95,14 @@ func main() {
 		}
 	} else if *targetSlot+lc.Spec.SlotsPerHistoricalRoot > *startSlot {
 		log.Printf("calling verifyExecutionPayload for slots %d->%d\n", *startSlot, *targetSlot)
-		state, stateTree := getState(lc, *startSlot)
-		state2, stateTree2 := getState(lc, *targetSlot)
+		state, stateTree, err2 := lc.GetBeaconState(*startSlot)
+		if err2 != nil {
+			log.Fatalln(err2)
+		}
+		state2, stateTree2, err2 := lc.GetBeaconState(*targetSlot)
+		if err2 != nil {
+			log.Fatalln(err2)
+		}
 		proof1 := stateTree2.MakeProof(24)
 		var hashes []common.Hash
 		for _, h := range state.StateRoots {
@@ -120,9 +127,18 @@ func main() {
 		historicalRootIndex := *targetSlot / lc.Spec.SlotsPerHistoricalRoot
 		historicalBatchSlot := historicalRootIndex*lc.Spec.SlotsPerHistoricalRoot + lc.Spec.SlotsPerHistoricalRoot
 		log.Printf("calling verifyExecutionPayload for slots %d->%d->%d\n", *startSlot, historicalBatchSlot, *targetSlot)
-		state, stateTree := getState(lc, *startSlot)
-		state2, _ := getState(lc, historicalBatchSlot)
-		state3, stateTree3 := getState(lc, *targetSlot)
+		state, stateTree, err2 := lc.GetBeaconState(*startSlot)
+		if err2 != nil {
+			log.Fatalln(err2)
+		}
+		state2, _, err2 := lc.GetBeaconState(historicalBatchSlot)
+		if err2 != nil {
+			log.Fatalln(err2)
+		}
+		state3, stateTree3, err2 := lc.GetBeaconState(*targetSlot)
+		if err2 != nil {
+			log.Fatalln(err2)
+		}
 
 		// execution_payload_root -> state_root -> state_roots -> historical_root -> historical_roots -> state_root
 		proof1 := stateTree3.MakeProof(24)
@@ -156,141 +172,23 @@ func main() {
 		}
 	}
 
-	s, err := sender.NewTxSender(context.TODO(), targetClient, *keystore, *keystorePass)
+	s, err := sender.NewTxSender(ctx, targetClient, *keystore, *keystorePass)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	to := common.HexToAddress(*chainContract)
-	gas, err := targetClient.EstimateGas(context.TODO(), ethereum.CallMsg{
+	signedTx, err := s.SendTx(ctx, &types.DynamicFeeTx{
 		To:   &to,
 		Data: data,
-	})
-	if err != nil {
-		log.Fatalln("estimate gas failed:", err)
-	}
-	log.Printf("Estimated gas: %d", gas)
-	signedTx, err := s.SendTx(context.TODO(), &types.DynamicFeeTx{
-		GasTipCap: big.NewInt(1e9),
-		GasFeeCap: big.NewInt(1e9),
-		Gas:       gas + gas/2,
-		To:        &to,
-		Data:      data,
 	})
 	if err != nil {
 		log.Fatalln(err)
 	}
 	log.Printf("Sent tx: %s\n", signedTx.Hash())
-	receipt, err := s.WaitReceipt(context.TODO(), signedTx)
+	receipt, err := s.WaitReceipt(ctx, signedTx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	data, _ = json.Marshal(receipt)
-	log.Println(string(data))
-}
-
-func getState(lc *lightclient.LightClient, n uint64) (*ethpb2.BeaconStateBellatrix, *crypto.MerkleTree) {
-	state, err := lc.Client.GetState(n)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	stateTree := crypto.NewVectorMerkleTree(
-		crypto.UintToHash(state.GenesisTime),
-		common.BytesToHash(state.GenesisValidatorsRoot),
-		crypto.UintToHash(uint64(state.Slot)),
-		lightclient.MustHashTreeRoot(state.Fork),
-		lightclient.MustHashTreeRoot(state.LatestBlockHeader),
-		hashRootsVector(state.BlockRoots),
-		hashRootsVector(state.StateRoots),
-		hashRootsList(state.HistoricalRoots, lc.Spec.HistoricalRootsLimit),
-		lightclient.MustHashTreeRoot(state.Eth1Data),
-		hashEth1Datas(state.Eth1DataVotes, int(lc.Spec.SlotsPerEpoch*lc.Spec.EpochsPerEth1VotingPeriod)),
-		crypto.UintToHash(state.Eth1DepositIndex),
-		hashValidators(state.Validators, lc.Spec.ValidatorRegistryLimit),
-		hashUint64List(state.Balances, lc.Spec.ValidatorRegistryLimit),
-		hashRootsVector(state.RandaoMixes),
-		hashUint64Vector(state.Slashings),
-		hashUint8List(state.PreviousEpochParticipation, lc.Spec.ValidatorRegistryLimit),
-		hashUint8List(state.CurrentEpochParticipation, lc.Spec.ValidatorRegistryLimit),
-		crypto.BytesToMerkleHash(state.JustificationBits.Bytes()),
-		lightclient.MustHashTreeRoot(state.PreviousJustifiedCheckpoint),
-		lightclient.MustHashTreeRoot(state.CurrentJustifiedCheckpoint),
-		lightclient.MustHashTreeRoot(state.FinalizedCheckpoint),
-		hashUint64List(state.InactivityScores, lc.Spec.ValidatorRegistryLimit),
-		lightclient.MustHashTreeRoot(state.CurrentSyncCommittee),
-		lightclient.MustHashTreeRoot(state.NextSyncCommittee),
-		lightclient.MustHashTreeRoot(state.LatestExecutionPayloadHeader),
-	)
-	return state, stateTree
-}
-
-func NewExecutionPayload(header *ethpb2.ExecutionPayloadHeader) ExecutionPayloadHeader {
-	return ExecutionPayloadHeader{
-		ParentHash:       common.BytesToHash(header.ParentHash),
-		FeeRecipient:     common.BytesToAddress(header.FeeRecipient),
-		StateRoot:        common.BytesToHash(header.StateRoot),
-		ReceiptsRoot:     common.BytesToHash(header.ReceiptsRoot),
-		LogsBloomRoot:    crypto.BytesToMerkleHash(header.LogsBloom),
-		PrevRandao:       common.BytesToHash(header.PrevRandao),
-		BlockNumber:      header.BlockNumber,
-		GasLimit:         header.GasLimit,
-		GasUsed:          header.GasUsed,
-		Timestamp:        header.Timestamp,
-		ExtraDataRoot:    crypto.NewPackedListMerkleTree(header.ExtraData, len(header.ExtraData), 1).Hash(),
-		BaseFeePerGas:    new(big.Int).SetBytes(bytesutil.ReverseByteOrder(header.BaseFeePerGas)),
-		BlockHash:        common.BytesToHash(header.BlockHash),
-		TransactionsRoot: common.BytesToHash(header.TransactionsRoot),
-	}
-}
-
-func hashRootsVector(rs [][]byte) common.Hash {
-	chunks := make([]common.Hash, len(rs))
-	for i, r := range rs {
-		chunks[i] = common.BytesToHash(r)
-	}
-	return crypto.NewVectorMerkleTree(chunks...).Hash()
-}
-
-func hashRootsList(rs [][]byte, limit int) common.Hash {
-	chunks := make([]common.Hash, len(rs))
-	for i, r := range rs {
-		chunks[i] = common.BytesToHash(r)
-	}
-	return crypto.NewListMerkleTree(chunks, limit).Hash()
-}
-
-func hashEth1Datas(ds []*ethpb2.Eth1Data, limit int) common.Hash {
-	chunks := make([]common.Hash, len(ds))
-	for i, d := range ds {
-		chunks[i] = lightclient.MustHashTreeRoot(d)
-	}
-	return crypto.NewListMerkleTree(chunks, limit).Hash()
-}
-
-func hashValidators(vs []*ethpb2.Validator, limit int) common.Hash {
-	chunks := make([]common.Hash, len(vs))
-	for i, v := range vs {
-		chunks[i] = lightclient.MustHashTreeRoot(v)
-	}
-	return crypto.NewListMerkleTree(chunks, limit).Hash()
-}
-
-func hashUint64List(vs []uint64, limit int) common.Hash {
-	data := make([]byte, 8*len(vs))
-	for i, x := range vs {
-		binary.LittleEndian.PutUint64(data[i*8:], x)
-	}
-	return crypto.NewPackedListMerkleTree(data, len(vs), limit/4).Hash()
-}
-
-func hashUint64Vector(vs []uint64) common.Hash {
-	data := make([]byte, 8*len(vs))
-	for i, x := range vs {
-		binary.LittleEndian.PutUint64(data[i*8:], x)
-	}
-	return crypto.NewPackedVectorMerkleTree(data).Hash()
-}
-
-func hashUint8List(vs []byte, limit int) common.Hash {
-	return crypto.NewPackedListMerkleTree(vs, len(vs), limit/32).Hash()
+	log.Println(contract.FormatReceipt(contract.LightClientChainABI, receipt))
 }

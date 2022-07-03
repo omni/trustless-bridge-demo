@@ -12,6 +12,8 @@ contract LightClientChain {
     uint256 internal constant SLOTS_PER_HISTORICAL_ROOT = 8192;
     uint256 internal constant HISTORICAL_ROOTS_LIMIT = 16777216;
 
+    event VerifiedExecutionBlock(uint256 indexed blockNumber, bytes32 blockHash);
+
     constructor(IBeaconLightClient client) {
         beaconLightClient = client;
     }
@@ -85,6 +87,8 @@ contract LightClientChain {
             head = payload.blockNumber;
         }
         headers[payload.blockNumber] = payload;
+
+        emit VerifiedExecutionBlock(payload.blockNumber, payload.blockHash);
     }
 
     function hashExecutionPayload(ILightClientChain.ExecutionPayloadHeader memory payload) public view returns (bytes32) {

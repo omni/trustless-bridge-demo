@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"flag"
 	"log"
 	"math/big"
@@ -16,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"bls-sandbox/contract"
-	"bls-sandbox/sender"
+	"oracle/contract"
+	"oracle/sender"
 )
 
 var (
@@ -33,6 +32,8 @@ var (
 
 func main() {
 	flag.Parse()
+
+	ctx := context.Background()
 
 	sourceRawClient, err := rpc.Dial(*sourceRPC)
 	if err != nil {
@@ -50,7 +51,7 @@ func main() {
 		nil,
 		{common.BigToHash(big.NewInt(*msgNonce))},
 	}
-	logs, err := sourceClient.FilterLogs(context.TODO(), ethereum.FilterQuery{
+	logs, err := sourceClient.FilterLogs(ctx, ethereum.FilterQuery{
 		Addresses: []common.Address{common.HexToAddress(*sourceAMB)},
 		Topics:    topics,
 	})
@@ -74,9 +75,8 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	data, err = targetClient.CallContract(context.TODO(), ethereum.CallMsg{
+	data, err = targetClient.CallContract(ctx, ethereum.CallMsg{
 		To:   &to,
-		Gas:  100000,
 		Data: cd,
 	}, nil)
 	if err != nil {
@@ -91,7 +91,7 @@ func main() {
 	}
 
 	key := gethcrypto.Keccak256Hash(common.BigToHash(big.NewInt(*msgNonce)).Bytes(), common.BigToHash(big.NewInt(0)).Bytes()).String()
-	proof, err := sourceGethClient.GetProof(context.TODO(), common.HexToAddress(*sourceAMB), []string{key}, big.NewInt(int64(syncedBlockNumber)))
+	proof, err := sourceGethClient.GetProof(ctx, common.HexToAddress(*sourceAMB), []string{key}, big.NewInt(int64(syncedBlockNumber)))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -103,38 +103,25 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	s, err := sender.NewTxSender(context.TODO(), targetClient, *keystore, *keystorePass)
+	s, err := sender.NewTxSender(ctx, targetClient, *keystore, *keystorePass)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	to = common.HexToAddress(*targetAMB)
-	gas, err := targetClient.EstimateGas(context.TODO(), ethereum.CallMsg{
+	signedTx, err := s.SendTx(ctx, &types.DynamicFeeTx{
 		To:   &to,
 		Data: data,
 	})
 	if err != nil {
-		log.Fatalln("estimate gas failed:", err)
-	}
-	log.Printf("Estimated gas: %d", gas)
-	signedTx, err := s.SendTx(context.TODO(), &types.DynamicFeeTx{
-		GasTipCap: big.NewInt(1e9),
-		GasFeeCap: big.NewInt(1e9),
-		Gas:       gas + gas/2,
-		To:        &to,
-		Data:      data,
-	})
-
-	if err != nil {
 		log.Fatalln(err)
 	}
 	log.Printf("Sent tx: %s\n", signedTx.Hash())
-	receipt, err := s.WaitReceipt(context.TODO(), signedTx)
+	receipt, err := s.WaitReceipt(ctx, signedTx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	data, _ = json.Marshal(receipt)
-	log.Println(string(data))
+	log.Println(contract.FormatReceipt(contract.AMBABI, receipt))
 }
 
 func transformProof(proof []string) [][]byte {

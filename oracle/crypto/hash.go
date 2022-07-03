@@ -6,14 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func HexToMerkleHash(s string) common.Hash {
-	return BytesToMerkleHash(common.FromHex(s))
-}
-
-func BytesToMerkleHash(bs []byte) common.Hash {
-	return NewVectorMerkleTree(BytesToChunks(bs)...).Hash()
-}
-
 func Sha256Hash(bs ...[]byte) common.Hash {
 	h := sha256.New()
 	h.Reset()

@@ -27,7 +27,7 @@ library MPT {
         for (uint256 i = 0; i < proof.length; i++) {
             bytes memory node = proof[i];
             bytes32 hash = keccak256(node);
-            require(root == hash, string(abi.encodePacked("MPT: node hash does not match", uint8(i + 0x30))));
+            require(root == hash, string(abi.encodePacked("MPT: node hash does not match")));
 
             RLPReader.RLPItem[] memory ls = node.toRlpItem().toList();
             if (ls.length == 17) {

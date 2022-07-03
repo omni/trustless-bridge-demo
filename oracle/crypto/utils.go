@@ -31,10 +31,6 @@ func UintToHash(v uint64) common.Hash {
 func BytesToChunks(s []byte) []common.Hash {
 	chunks := make([]common.Hash, (len(s)+31)/32)
 	for i := 0; i < len(s); i += 32 {
-		e := i + 32
-		if e > len(s) {
-			e = len(s)
-		}
 		res := common.Hash{}
 		copy(res[:], s[i:])
 		chunks[i/32] = res

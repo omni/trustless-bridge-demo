@@ -4,6 +4,10 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
+	ethpb2 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+
+	"oracle/crypto"
 )
 
 type ExecutionPayloadHeader struct {
@@ -21,4 +25,23 @@ type ExecutionPayloadHeader struct {
 	BaseFeePerGas    *big.Int       `json:"baseFeePerGas" abi:"baseFeePerGas"`
 	BlockHash        common.Hash    `json:"blockHash" abi:"blockHash"`
 	TransactionsRoot common.Hash    `json:"transactionsRoot" abi:"transactionsRoot"`
+}
+
+func NewExecutionPayload(header *ethpb2.ExecutionPayloadHeader) ExecutionPayloadHeader {
+	return ExecutionPayloadHeader{
+		ParentHash:       common.BytesToHash(header.ParentHash),
+		FeeRecipient:     common.BytesToAddress(header.FeeRecipient),
+		StateRoot:        common.BytesToHash(header.StateRoot),
+		ReceiptsRoot:     common.BytesToHash(header.ReceiptsRoot),
+		LogsBloomRoot:    crypto.BytesToMerkleHash(header.LogsBloom),
+		PrevRandao:       common.BytesToHash(header.PrevRandao),
+		BlockNumber:      header.BlockNumber,
+		GasLimit:         header.GasLimit,
+		GasUsed:          header.GasUsed,
+		Timestamp:        header.Timestamp,
+		ExtraDataRoot:    crypto.NewPackedListMerkleTree(header.ExtraData, len(header.ExtraData), 1).Hash(),
+		BaseFeePerGas:    new(big.Int).SetBytes(bytesutil.ReverseByteOrder(header.BaseFeePerGas)),
+		BlockHash:        common.BytesToHash(header.BlockHash),
+		TransactionsRoot: common.BytesToHash(header.TransactionsRoot),
+	}
 }

@@ -10,21 +10,24 @@ import (
 	"os"
 	"strings"
 
-	"bls-sandbox/config"
-	"bls-sandbox/contract"
-	"bls-sandbox/lightclient"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/ethclient"
+
+	"oracle/config"
+	"oracle/contract"
+	"oracle/lightclient"
+)
+
+var (
+	configFile  = flag.String("config", "./config.yml", "")
+	currentSlot = flag.Uint64("currentSlot", 0, "")
+	targetSlot  = flag.Uint64("targetSlot", 0, "")
+	outputFile  = flag.String("output", "./proof_<from>_<to>.json", "")
+	n           = flag.Int("n", 1, "")
+	finality    = flag.Bool("finality", true, "")
 )
 
 func main() {
-	configFile := flag.String("config", "./config.yml", "")
-	currentSlot := flag.Uint64("currentSlot", 0, "")
-	targetSlot := flag.Uint64("targetSlot", 0, "")
-	outputFile := flag.String("output", "./proof_<from>_<to>.json", "")
-	n := flag.Int("n", 1, "")
-	finality := flag.Bool("finality", true, "")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -57,7 +60,6 @@ func main() {
 
 		res, err := eth1Client.CallContract(ctx, ethereum.CallMsg{
 			To:   &cfg.Eth1.Contract,
-			Gas:  100000,
 			Data: data,
 		}, nil)
 		if err != nil {

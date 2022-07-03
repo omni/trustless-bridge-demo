@@ -128,6 +128,14 @@ func (p *MerkleProof) ReconstructRoot(data common.Hash) common.Hash {
 	return leaf
 }
 
+func HexToMerkleHash(s string) common.Hash {
+	return BytesToMerkleHash(common.FromHex(s))
+}
+
+func BytesToMerkleHash(bs []byte) common.Hash {
+	return NewVectorMerkleTree(BytesToChunks(bs)...).Hash()
+}
+
 func merkle(chunks []common.Hash, n int) common.Hash {
 	if len(chunks) == 0 {
 		return ZeroHash(n)

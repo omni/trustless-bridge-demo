@@ -54,7 +54,6 @@ contract TrustlessAMB is TrustlessAMBStorage, EIP1967Admin {
         require(executionStatus[vars.msgHash] == ExecutionStatus.NOT_EXECUTED, "TrustlessAMB: message already executed");
 
         vars.stateRoot = chain.stateRoot(sourceBlock);
-
         require(vars.stateRoot != bytes32(0), "TrustlessAMB: stateRoot is missing");
 
         {
@@ -104,7 +103,6 @@ contract TrustlessAMB is TrustlessAMBStorage, EIP1967Admin {
         require(executionStatus[msgHash] == ExecutionStatus.NOT_EXECUTED, "TrustlessAMB: message already executed");
 
         bytes32 receiptsRoot = chain.receiptsRoot(sourceBlock);
-
         require(receiptsRoot != bytes32(0), "TrustlessAMB: stateRoot is missing");
 
         {

@@ -1,4 +1,4 @@
-package client
+package beaconclient
 
 type ModelGenesis struct {
 	Data ModelGenesisData `json:"data"`

@@ -15,11 +15,13 @@ import (
 )
 
 type TxSender struct {
-	Client  *ethclient.Client
-	ChainID *big.Int
-	Nonce   uint64
-	acc     *keystore.Key
-	signer  types.Signer
+	Client       *ethclient.Client
+	ChainID      *big.Int
+	MaxFeePerGas *big.Int
+	MaxTipPerGas *big.Int
+	Nonce        uint64
+	acc          *keystore.Key
+	signer       types.Signer
 }
 
 func NewTxSender(ctx context.Context, eth1Client *ethclient.Client, keystorePath string, keystorePassword string) (*TxSender, error) {
@@ -42,17 +44,40 @@ func NewTxSender(ctx context.Context, eth1Client *ethclient.Client, keystorePath
 	}
 
 	return &TxSender{
-		Client:  eth1Client,
-		ChainID: chainID,
-		Nonce:   nonce,
-		acc:     acc,
-		signer:  types.NewLondonSigner(chainID),
+		Client:       eth1Client,
+		ChainID:      chainID,
+		MaxFeePerGas: big.NewInt(1e9),
+		MaxTipPerGas: big.NewInt(1e9),
+		Nonce:        nonce,
+		acc:          acc,
+		signer:       types.NewLondonSigner(chainID),
 	}, nil
 }
 
 func (s *TxSender) SendTx(ctx context.Context, tx *types.DynamicFeeTx) (*types.Transaction, error) {
-	tx.Nonce = s.Nonce
 	tx.ChainID = s.ChainID
+	if tx.GasFeeCap == nil {
+		tx.GasFeeCap = s.MaxFeePerGas
+	}
+	if tx.GasTipCap == nil {
+		tx.GasTipCap = s.MaxTipPerGas
+	}
+	tx.Nonce = s.Nonce
+	if tx.Gas == 0 {
+		gas, err := s.Client.EstimateGas(ctx, ethereum.CallMsg{
+			From:       s.acc.Address,
+			To:         tx.To,
+			GasFeeCap:  tx.GasFeeCap,
+			GasTipCap:  tx.GasTipCap,
+			Value:      tx.Value,
+			Data:       tx.Data,
+			AccessList: tx.AccessList,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("gas estimation failed: %w", err)
+		}
+		tx.Gas = gas * 3 / 2
+	}
 	signedTx, err := types.SignNewTx(s.acc.PrivateKey, s.signer, tx)
 	if err != nil {
 		return nil, err

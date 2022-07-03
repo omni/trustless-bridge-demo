@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"flag"
 	"log"
 	"math/big"
@@ -14,11 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 
-	"bls-sandbox/contract"
-	"bls-sandbox/sender"
+	"oracle/contract"
+	"oracle/sender"
 )
 
 var (
@@ -35,12 +33,12 @@ var (
 func main() {
 	flag.Parse()
 
-	sourceRawClient, err := rpc.Dial(*sourceRPC)
+	ctx := context.Background()
+
+	sourceClient, err := ethclient.Dial(*sourceRPC)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	sourceClient := ethclient.NewClient(sourceRawClient)
-	//sourceGethClient := gethclient.New(sourceRawClient)
 	targetClient, err := ethclient.Dial(*targetRPC)
 	if err != nil {
 		log.Fatalln(err)
@@ -51,7 +49,7 @@ func main() {
 		nil,
 		{common.BigToHash(big.NewInt(*msgNonce))},
 	}
-	logs, err := sourceClient.FilterLogs(context.TODO(), ethereum.FilterQuery{
+	logs, err := sourceClient.FilterLogs(ctx, ethereum.FilterQuery{
 		Addresses: []common.Address{common.HexToAddress(*sourceAMB)},
 		Topics:    topics,
 	})
@@ -75,9 +73,8 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	data, err = targetClient.CallContract(context.TODO(), ethereum.CallMsg{
+	data, err = targetClient.CallContract(ctx, ethereum.CallMsg{
 		To:   &to,
-		Gas:  100000,
 		Data: cd,
 	}, nil)
 	if err != nil {
@@ -91,14 +88,32 @@ func main() {
 		log.Fatalf("not yet synced to the desired block number, %d < %d \n", syncedBlockNumber, blockNumber)
 	}
 
-	block, err := sourceClient.BlockByHash(context.TODO(), logs[0].BlockHash)
+	cd, err = contract.LightClientChainABI.Pack("stateRoot", big.NewInt(int64(blockNumber)))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	data, err = targetClient.CallContract(ctx, ethereum.CallMsg{
+		To:   &to,
+		Data: cd,
+	}, nil)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	if len(data) != 32 {
+		log.Fatalln("stateRoot(uint256) should return 32 bytes")
+	}
+	if common.BytesToHash(data) == (common.Hash{}) {
+		log.Fatalf("state root for execution block %d is missing\n", blockNumber)
+	}
+
+	block, err := sourceClient.BlockByHash(ctx, logs[0].BlockHash)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	receiptTrie, _ := trie.New(common.Hash{}, trie.NewDatabase(memorydb.New()))
 	logIndex := 0
 	for i, tx := range block.Transactions() {
-		receipt, err2 := sourceClient.TransactionReceipt(context.TODO(), tx.Hash())
+		receipt, err2 := sourceClient.TransactionReceipt(ctx, tx.Hash())
 		if err2 != nil {
 			log.Fatalln(err2)
 		}
@@ -120,7 +135,7 @@ func main() {
 
 	data, err = contract.AMBABI.Pack(
 		"executeMessageFromLog",
-		big.NewInt(int64(syncedBlockNumber)),
+		big.NewInt(int64(blockNumber)),
 		big.NewInt(int64(logs[0].TxIndex)),
 		big.NewInt(int64(logIndex)),
 		msg,
@@ -130,38 +145,25 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	s, err := sender.NewTxSender(context.TODO(), targetClient, *keystore, *keystorePass)
+	s, err := sender.NewTxSender(ctx, targetClient, *keystore, *keystorePass)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	to = common.HexToAddress(*targetAMB)
-	gas, err := targetClient.EstimateGas(context.TODO(), ethereum.CallMsg{
+	signedTx, err := s.SendTx(ctx, &types.DynamicFeeTx{
 		To:   &to,
 		Data: data,
 	})
 	if err != nil {
-		log.Fatalln("estimate gas failed:", err)
-	}
-	log.Printf("Estimated gas: %d", gas)
-	signedTx, err := s.SendTx(context.TODO(), &types.DynamicFeeTx{
-		GasTipCap: big.NewInt(1e9),
-		GasFeeCap: big.NewInt(1e9),
-		Gas:       gas + gas/2,
-		To:        &to,
-		Data:      data,
-	})
-
-	if err != nil {
 		log.Fatalln(err)
 	}
 	log.Printf("Sent tx: %s\n", signedTx.Hash())
-	receipt, err := s.WaitReceipt(context.TODO(), signedTx)
+	receipt, err := s.WaitReceipt(ctx, signedTx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	data, _ = json.Marshal(receipt)
-	log.Println(string(data))
+	log.Println(contract.FormatReceipt(contract.AMBABI, receipt))
 }
 
 type OrderedDB struct {

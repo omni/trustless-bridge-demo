@@ -7,18 +7,17 @@ import (
 	"strconv"
 	"time"
 
-	"bls-sandbox/client"
-	"bls-sandbox/config"
-	"bls-sandbox/crypto"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	blscommon "github.com/prysmaticlabs/prysm/crypto/bls/common"
 	ethpb2 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+
+	"oracle/beaconclient"
+	"oracle/config"
+	"oracle/crypto"
 )
 
 type LightClient struct {
-	Client       client.Eth2Client
+	Client       beaconclient.Eth2Client
 	Spec         *config.SpecConfig
 	Genesis      *config.GenesisConfig
 	WithFinality bool
@@ -26,7 +25,7 @@ type LightClient struct {
 
 func NewLightClient(cfg config.Eth2Config, finality bool) (*LightClient, error) {
 	lc := &LightClient{
-		Client:       client.NewClient(cfg.Client.URL),
+		Client:       beaconclient.NewClient(cfg.Client.URL),
 		Spec:         cfg.Spec,
 		Genesis:      cfg.Genesis,
 		WithFinality: finality,
@@ -96,9 +95,9 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 
 	for {
 		log.Println("Fetching block for slot", slot)
-		head, err = c.Client.GetBlock(slot)
+		head, err = c.Client.GetBlock(strconv.FormatUint(slot, 10))
 		if err != nil {
-			if errors.Is(err, client.NotFoundError) {
+			if errors.Is(err, beaconclient.NotFoundError) {
 				slot--
 				log.Println("Block does not exist, trying previous slot", slot)
 				continue
@@ -119,9 +118,9 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	var attestedBlock *ethpb2.BeaconBlockBellatrix
 	for {
 		log.Println("Fetching header for slot", attestedSlot)
-		attestedBlock, err = c.Client.GetBlock(attestedSlot)
+		attestedBlock, err = c.Client.GetBlock(strconv.FormatUint(attestedSlot, 10))
 		if err != nil {
-			if errors.Is(err, client.NotFoundError) {
+			if errors.Is(err, beaconclient.NotFoundError) {
 				attestedSlot--
 				log.Println("Header does not exist, trying previous slot", attestedSlot)
 				continue
@@ -131,7 +130,7 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 		break
 	}
 
-	curBlock, err := c.Client.GetBlock(curSlot)
+	curBlock, err := c.Client.GetBlock(strconv.FormatUint(curSlot, 10))
 	if err != nil {
 		return nil, fmt.Errorf("can't get block %d: %w", curSlot, err)
 	}
@@ -139,7 +138,7 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	headHeader := ConvertToHeader(head)
 	attestedHeader := ConvertToHeader(attestedBlock)
 	curHeader := ConvertToHeader(curBlock)
-	attestedRoot := MustHashTreeRoot(attestedBlock)
+	attestedRoot := crypto.MustHashTreeRoot(attestedBlock)
 
 	candidatePeriod := attestedSlot / slotsPerPeriod
 
@@ -154,20 +153,14 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 		return nil, fmt.Errorf("can't prove sync committee: %w", err)
 	}
 
-	var pk blscommon.PublicKey
+	var pk *crypto.G1Point
 	for _, i := range head.Body.SyncAggregate.SyncCommitteeBits.BitIndices() {
-		if pk == nil {
-			pk = cmt.PublicKeys[i].Copy()
-		} else {
-			pk.Aggregate(cmt.PublicKeys[i])
-		}
+		pk = crypto.AddG1Points(pk, &cmt.PublicKeys[i])
 	}
-	log.Println("Aggregate public key", hexutil.Encode(pk.Marshal()))
-	log.Println("Checking sync committee aggregate signature", hexutil.Encode(pk.Marshal()))
-	log.Println("Checking sync domain root", c.syncDomainRoot())
+	log.Printf("Verifying sync committee signature, aggregated pk = %s\n", pk.String())
 	// check that already known and proven sync committee signed some block header
 	sig := crypto.MustDecodeSig(head.Body.SyncAggregate.SyncCommitteeSignature)
-	if !crypto.Verify(attestedRoot, c.syncDomainRoot(), pk, sig) {
+	if !crypto.Verify(attestedRoot, c.syncDomainRoot(), *pk, sig) {
 		return nil, fmt.Errorf("can't verify aggregate signature from sync committee")
 	}
 
@@ -176,17 +169,23 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	update := &Update{
 		ForkVersion:             forkVersion,
 		AttestedHeader:          attestedHeader,
-		SyncCommitteeAggregated: PkToG1(pk),
-		SyncAggregateSignature:  SigToG2(sig),
+		SyncCommitteeAggregated: *pk,
+		SyncAggregateSignature:  sig,
 		SyncCommitteeBranch:     proof.Path,
 		FinalityBranch:          []common.Hash{},
-	}
-	state, stateTree, err := c.getBeaconState(attestedSlot, attestedHeader.StateRoot)
-	if err != nil {
-		return nil, fmt.Errorf("can't get finality beacon state: %w", err)
+		SyncCommittee:           cmt.PublicKeys,
 	}
 	if c.WithFinality {
-		finalizedBlock, err := c.Client.GetBlockByHash(common.BytesToHash(state.FinalizedCheckpoint.Root))
+		log.Println("Fetching full beacon state for slot", attestedSlot)
+		state, stateTree, err := c.GetBeaconState(attestedSlot)
+		if err != nil {
+			return nil, fmt.Errorf("can't get finality beacon state: %w", err)
+		}
+		recStateRoot := stateTree.Hash()
+		if recStateRoot != attestedHeader.StateRoot {
+			log.Fatalf("failed to reconstruct given state root, %s != %s\n", recStateRoot, attestedHeader.StateRoot)
+		}
+		finalizedBlock, err := c.Client.GetBlock(hexutil.Encode(state.FinalizedCheckpoint.Root))
 		if err != nil {
 			return nil, fmt.Errorf("can't get finality block: %w", err)
 		}
@@ -199,18 +198,10 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 		if update.FinalizedHeader.Slot <= curSlot {
 			return nil, nil
 		}
-
-		state, stateTree, err = c.getBeaconState(update.FinalizedHeader.Slot, update.FinalizedHeader.StateRoot)
-		if err != nil {
-			return nil, fmt.Errorf("can't get finality beacon state: %w", err)
-		}
 	} else {
 		if attestedHeader.Slot <= curSlot {
 			return nil, nil
 		}
-	}
-	for _, pk := range cmt.PublicKeys {
-		update.SyncCommittee = append(update.SyncCommittee, PkToG1(pk))
 	}
 
 	bits := head.Body.SyncAggregate.SyncCommitteeBits.Bytes()
@@ -225,52 +216,46 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	return update, nil
 }
 
-func (c *LightClient) getBeaconState(slot uint64, stateRoot common.Hash) (*ethpb2.BeaconStateBellatrix, *crypto.MerkleTree, error) {
-	log.Println("Fetching full beacon state for slot", slot)
+func (c *LightClient) GetBeaconState(slot uint64) (*ethpb2.BeaconStateBellatrix, *crypto.MerkleTree, error) {
 	state, err := c.Client.GetState(slot)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	log.Println("Reconstructing beacon state merkle tree")
 	stateTree := crypto.NewVectorMerkleTree(
 		crypto.UintToHash(state.GenesisTime),
 		common.BytesToHash(state.GenesisValidatorsRoot),
 		crypto.UintToHash(uint64(state.Slot)),
-		MustHashTreeRoot(state.Fork),
-		MustHashTreeRoot(state.LatestBlockHeader),
-		hashRootsVector(state.BlockRoots),
-		hashRootsVector(state.StateRoots),
-		hashRootsList(state.HistoricalRoots, c.Spec.HistoricalRootsLimit),
-		MustHashTreeRoot(state.Eth1Data),
-		hashEth1Datas(state.Eth1DataVotes, int(c.Spec.SlotsPerEpoch*c.Spec.EpochsPerEth1VotingPeriod)),
+		crypto.MustHashTreeRoot(state.Fork),
+		crypto.MustHashTreeRoot(state.LatestBlockHeader),
+		crypto.HashRootsVector(state.BlockRoots),
+		crypto.HashRootsVector(state.StateRoots),
+		crypto.HashRootsList(state.HistoricalRoots, c.Spec.HistoricalRootsLimit),
+		crypto.MustHashTreeRoot(state.Eth1Data),
+		crypto.HashEth1Datas(state.Eth1DataVotes, int(c.Spec.SlotsPerEpoch*c.Spec.EpochsPerEth1VotingPeriod)),
 		crypto.UintToHash(state.Eth1DepositIndex),
-		hashValidators(state.Validators, c.Spec.ValidatorRegistryLimit),
-		hashUint64List(state.Balances, c.Spec.ValidatorRegistryLimit),
-		hashRootsVector(state.RandaoMixes),
-		hashUint64Vector(state.Slashings),
-		hashUint8List(state.PreviousEpochParticipation, c.Spec.ValidatorRegistryLimit),
-		hashUint8List(state.CurrentEpochParticipation, c.Spec.ValidatorRegistryLimit),
+		crypto.HashValidators(state.Validators, c.Spec.ValidatorRegistryLimit),
+		crypto.HashUint64List(state.Balances, c.Spec.ValidatorRegistryLimit),
+		crypto.HashRootsVector(state.RandaoMixes),
+		crypto.HashUint64Vector(state.Slashings),
+		crypto.HashUint8List(state.PreviousEpochParticipation, c.Spec.ValidatorRegistryLimit),
+		crypto.HashUint8List(state.CurrentEpochParticipation, c.Spec.ValidatorRegistryLimit),
 		crypto.BytesToMerkleHash(state.JustificationBits.Bytes()),
-		MustHashTreeRoot(state.PreviousJustifiedCheckpoint),
-		MustHashTreeRoot(state.CurrentJustifiedCheckpoint),
-		MustHashTreeRoot(state.FinalizedCheckpoint),
-		hashUint64List(state.InactivityScores, c.Spec.ValidatorRegistryLimit),
-		MustHashTreeRoot(state.CurrentSyncCommittee),
-		MustHashTreeRoot(state.NextSyncCommittee),
-		MustHashTreeRoot(state.LatestExecutionPayloadHeader),
+		crypto.MustHashTreeRoot(state.PreviousJustifiedCheckpoint),
+		crypto.MustHashTreeRoot(state.CurrentJustifiedCheckpoint),
+		crypto.MustHashTreeRoot(state.FinalizedCheckpoint),
+		crypto.HashUint64List(state.InactivityScores, c.Spec.ValidatorRegistryLimit),
+		crypto.MustHashTreeRoot(state.CurrentSyncCommittee),
+		crypto.MustHashTreeRoot(state.NextSyncCommittee),
+		crypto.MustHashTreeRoot(state.LatestExecutionPayloadHeader),
 	)
-	recStateRoot := stateTree.Hash()
-	if recStateRoot != stateRoot {
-		return nil, nil, fmt.Errorf("failed to reconstruct given state root, %s != %s", recStateRoot, stateRoot)
-	}
 	return state, stateTree, nil
 }
 
 func (c *LightClient) proveNewSyncCommittee(slot uint64, stateRoot common.Hash, next bool) (*SyncCommittee, *crypto.MerkleProof, error) {
-	state, stateTree, err := c.getBeaconState(slot, stateRoot)
+	state, stateTree, err := c.GetBeaconState(slot)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Can't get beacon state: %w", err)
+		return nil, nil, fmt.Errorf("can't get beacon state: %w", err)
 	}
 	index := 22
 	cmt := state.CurrentSyncCommittee
@@ -280,7 +265,7 @@ func (c *LightClient) proveNewSyncCommittee(slot uint64, stateRoot common.Hash, 
 		cmt = state.NextSyncCommittee
 	}
 	proof := stateTree.MakeProof(index)
-	if proof.ReconstructRoot(MustHashTreeRoot(cmt)) != stateRoot {
+	if proof.ReconstructRoot(crypto.MustHashTreeRoot(cmt)) != stateRoot {
 		return nil, nil, fmt.Errorf("failed to verify merkle proof against state_root")
 	}
 	log.Println("Current sync committee is verified against given state root")

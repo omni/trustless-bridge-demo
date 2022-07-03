@@ -1,4 +1,4 @@
-module bls-sandbox
+module oracle
 
 go 1.18
 

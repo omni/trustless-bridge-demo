@@ -1,4 +1,4 @@
-package client
+package beaconclient
 
 import (
 	"encoding/json"
@@ -8,15 +8,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	ethpb2 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 )
 
 type Eth2Client interface {
 	GetSpec() (*ModelSpecData, error)
 	GetGenesis() (*ModelGenesisData, error)
-	GetBlock(slot uint64) (*ethpb2.BeaconBlockBellatrix, error)
-	GetBlockByHash(hash common.Hash) (*ethpb2.BeaconBlockBellatrix, error)
+	GetBlock(id string) (*ethpb2.BeaconBlockBellatrix, error)
 	GetState(slot uint64) (*ethpb2.BeaconStateBellatrix, error)
 }
 
@@ -97,18 +95,8 @@ func (b *BeaconClient) GetGenesis() (*ModelGenesisData, error) {
 	return &data.Data, err
 }
 
-func (b *BeaconClient) GetBlock(slot uint64) (*ethpb2.BeaconBlockBellatrix, error) {
-	url := fmt.Sprintf("/eth/v2/beacon/blocks/%d", slot)
-	data := new(ethpb2.SignedBeaconBlockBellatrix)
-	err := b.get(url, data, true)
-	if err != nil {
-		return nil, fmt.Errorf("can't fetch block: %w", err)
-	}
-	return data.Block, nil
-}
-
-func (b *BeaconClient) GetBlockByHash(hash common.Hash) (*ethpb2.BeaconBlockBellatrix, error) {
-	url := fmt.Sprintf("/eth/v2/beacon/blocks/%s", hash)
+func (b *BeaconClient) GetBlock(id string) (*ethpb2.BeaconBlockBellatrix, error) {
+	url := fmt.Sprintf("/eth/v2/beacon/blocks/%s", id)
 	data := new(ethpb2.SignedBeaconBlockBellatrix)
 	err := b.get(url, data, true)
 	if err != nil {
