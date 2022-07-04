@@ -79,7 +79,7 @@ function start_bootnode() {
 function start_geth() {
   docker run --network $1 -p $2:8545 --name geth-$1 -d -v $GETH_KEYSTORE:/tmp/keys -v $GETH_SECRET:/tmp/jwtsecret \
     $GETH_IMAGE --dev --networkid $3 \
-    --http --http.addr 0.0.0.0 --http.api net,eth,engine,debug --http.vhosts '*' --http.corsdomain '*' \
+    --http --http.addr 0.0.0.0 --http.api net,eth,engine,debug,txpool --http.vhosts '*' --http.corsdomain '*' \
     --authrpc.port 8551 --authrpc.addr 0.0.0.0 --authrpc.vhosts '*' --authrpc.jwtsecret /tmp/jwtsecret \
     --dev.period $SECONDS_PER_SLOT --gcmode archive \
     --override.terminaltotaldifficulty $TARGET_TOTAL_DIFFICULTY \
