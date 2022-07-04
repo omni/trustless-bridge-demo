@@ -21,7 +21,17 @@ Messages are being recorded in state mapping, so that the can be later proven on
 * AMB executor - `./oracle/cmd/amb/execute_storage` - worker for executing sent AMB messages through storage verification.
 * AMB executor - `./oracle/cmd/amb/execute_log` - worker for executing sent AMB messages through emitted log verification.
 
-## Scripts
+## Demo Scripts
+
+### Requirements
+In order to execute demo scripts, make sure the following requirements are installed on your host:
+* bash
+* docker
+* docker-compose
+* forge & cast tools (https://book.getfoundry.sh/getting-started/installation.html)
+* jq (https://stedolan.github.io/jq/download/)
+
+### Switch directory
 Before running any of the below scripts, change your working dir to `./demo`:
 ```shell
 cd ./demo
