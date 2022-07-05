@@ -28,6 +28,9 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         // fork_version from the spec
         bytes4 forkVersion;
 
+        // signature_slot from the spec
+        uint64 signatureSlot;
+
         // attested_header from the spec
         BeaconBlockHeader attestedHeader;
 
@@ -79,6 +82,7 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         if (hasFinalityProof) {
             activeHeader = update.finalizedHeader;
         } else {
+            require(update.finalizedHeader.slot == 0, "Invalid finalizedHeader");
             activeHeader = update.attestedHeader;
         }
 
@@ -88,27 +92,23 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         uint256 syncCommitteeIndex;
         {
             uint256 currentSyncCommitteePeriod = _syncCommitteePeriod(head);
-            uint256 updateSyncCommitteePeriod = _syncCommitteePeriod(update.attestedHeader.slot);
+            uint256 updateSyncCommitteePeriod = _syncCommitteePeriod(update.signatureSlot);
             if (updateSyncCommitteePeriod == currentSyncCommitteePeriod) {
                 syncCommitteeIndex = CURRENT_SYNC_COMMITTEE_INDEX;
             } else if (updateSyncCommitteePeriod == currentSyncCommitteePeriod + 1) {
                 syncCommitteeIndex = NEXT_SYNC_COMMITTEE_INDEX;
             } else {
-                revert("Signed slot is too far in the future");
+                revert("Signature slot is too far in the future");
             }
         }
 
         // verify that finality proof is correct
-        bytes32 activeRoot = _headerRoot(activeHeader);
-        bytes32 attestedRoot;
-        bytes32 restoredStateRoot;
+        bytes32 attestedRoot = _headerRoot(update.attestedHeader);
+        bytes32 activeRoot = attestedRoot;
         if (hasFinalityProof) {
-            attestedRoot = _headerRoot(update.attestedHeader);
-            restoredStateRoot = Merkle.restoreMerkleRoot(activeRoot, FINALIZED_ROOT_INDEX, update.finalityBranch);
+            activeRoot = _headerRoot(update.finalizedHeader);
+            bytes32 restoredStateRoot = Merkle.restoreMerkleRoot(activeRoot, FINALIZED_ROOT_INDEX, update.finalityBranch);
             require(update.attestedHeader.stateRoot == restoredStateRoot, "Cannot verify finality checkpoint proof");
-        } else {
-            attestedRoot = activeRoot;
-            require(update.finalizedHeader.slot == 0, "Invalid finalizedHeader");
         }
 
         // aggregate sync committee pub keys
@@ -121,7 +121,7 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
 
         // verify that given sync committee is in the latest known block
         bytes32 syncCommitteeRoot = _hashSyncCommittee(update.syncCommittee, aggregatedPK);
-        restoredStateRoot = Merkle.restoreMerkleRoot(syncCommitteeRoot, syncCommitteeIndex, update.syncCommitteeBranch);
+        bytes32 restoredStateRoot = Merkle.restoreMerkleRoot(syncCommitteeRoot, syncCommitteeIndex, update.syncCommitteeBranch);
         require(headers[head].stateRoot == restoredStateRoot, "Cannot verify sync committee proof");
 
         // verify sync committee signature

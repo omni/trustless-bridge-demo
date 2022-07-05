@@ -16,6 +16,10 @@ import (
 	"oracle/crypto"
 )
 
+const (
+	MinSyncCommitteeParticipants = 10
+)
+
 type LightClient struct {
 	Client       beaconclient.Eth2Client
 	Spec         *config.SpecConfig
@@ -88,7 +92,6 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 			return nil, fmt.Errorf("target slot is too far in the future, should be <= %d, got %d", nextPeriodEnd, targetSlot)
 		}
 	}
-	curPeriod := curSlot / slotsPerPeriod
 
 	var head *ethpb2.BeaconBlockBellatrix
 	var err error
@@ -105,50 +108,34 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 			return nil, fmt.Errorf("can't get block %d: %w", slot, err)
 		}
 		syncParticipants := head.Body.SyncAggregate.SyncCommitteeBits.Count()
-		if syncParticipants < 10 || (c.WithFinality && syncParticipants < 512*2/3) {
+		if syncParticipants < MinSyncCommitteeParticipants || (c.WithFinality && 3*syncParticipants < 2*uint64(c.Spec.SyncCommitteeSize)) {
 			slot--
 			log.Println("Not enough sync committee signatures", slot)
 			continue
 		}
-		log.Printf("Chosen header with %d (%.2f%%) sync participants\n", syncParticipants, float64(syncParticipants)/5.12)
+		participation := float64(syncParticipants) * 100 / float64(c.Spec.SyncCommitteeSize)
+		log.Printf("Chosen header with %d (%.2f%%) sync participants\n", syncParticipants, participation)
 		break
 	}
 
-	attestedSlot := slot - 1
-	var attestedBlock *ethpb2.BeaconBlockBellatrix
-	for {
-		log.Println("Fetching header for slot", attestedSlot)
-		attestedBlock, err = c.Client.GetBlock(strconv.FormatUint(attestedSlot, 10))
-		if err != nil {
-			if errors.Is(err, beaconclient.NotFoundError) {
-				attestedSlot--
-				log.Println("Header does not exist, trying previous slot", attestedSlot)
-				continue
-			}
-			return nil, fmt.Errorf("can't get block %d: %w", attestedSlot, err)
-		}
-		break
+	signatureSlot := uint64(head.Slot)
+	attestedRoot := common.BytesToHash(head.ParentRoot)
+	log.Println("Fetching block for root ", attestedRoot)
+	attestedBlock, err := c.Client.GetBlock(attestedRoot.String())
+	if err != nil {
+		return nil, fmt.Errorf("can't get block %s: %w", attestedRoot, err)
 	}
+	attestedHeader := ConvertToHeader(attestedBlock)
 
 	curBlock, err := c.Client.GetBlock(strconv.FormatUint(curSlot, 10))
 	if err != nil {
 		return nil, fmt.Errorf("can't get block %d: %w", curSlot, err)
 	}
 
-	headHeader := ConvertToHeader(head)
-	attestedHeader := ConvertToHeader(attestedBlock)
-	curHeader := ConvertToHeader(curBlock)
-	attestedRoot := crypto.MustHashTreeRoot(attestedBlock)
-
-	candidatePeriod := attestedSlot / slotsPerPeriod
-
-	if headHeader.ParentRoot != attestedRoot {
-		return nil, fmt.Errorf("block.parent_root != parent.root, %q != %q", headHeader.ParentRoot, attestedRoot)
-	}
-
-	log.Println("Fetching and proving sync committee", curSlot, attestedSlot)
+	log.Println("Fetching and proving sync committee", curSlot, signatureSlot)
+	isNext := curSlot/slotsPerPeriod != curSlot/slotsPerPeriod
 	// check that obtained sync committee is reflected in the current block state_root
-	cmt, proof, err := c.proveNewSyncCommittee(curSlot, curHeader.StateRoot, curPeriod != candidatePeriod)
+	cmt, proof, err := c.proveNewSyncCommittee(curSlot, common.BytesToHash(curBlock.StateRoot), isNext)
 	if err != nil {
 		return nil, fmt.Errorf("can't prove sync committee: %w", err)
 	}
@@ -168,6 +155,7 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	copy(forkVersion[:], common.FromHex(c.Spec.BellatrixForkVersion))
 	update := &Update{
 		ForkVersion:             forkVersion,
+		SignatureSlot:           uint64(head.Slot),
 		AttestedHeader:          attestedHeader,
 		SyncCommitteeAggregated: *pk,
 		SyncAggregateSignature:  sig,
@@ -176,8 +164,8 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 		SyncCommittee:           cmt.PublicKeys,
 	}
 	if c.WithFinality {
-		log.Println("Fetching full beacon state for slot", attestedSlot)
-		state, stateTree, err := c.GetBeaconState(attestedSlot)
+		log.Println("Fetching full beacon state for slot", attestedHeader.Slot)
+		state, stateTree, err := c.GetBeaconState(attestedHeader.Slot)
 		if err != nil {
 			return nil, fmt.Errorf("can't get finality beacon state: %w", err)
 		}

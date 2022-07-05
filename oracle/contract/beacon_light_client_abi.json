@@ -44,7 +44,7 @@
             "type": "bytes32"
           }
         ],
-        "internalType": "struct LightClient.BeaconBlockHeader",
+        "internalType": "struct BeaconLightClient.BeaconBlockHeader",
         "name": "startHeader",
         "type": "tuple"
       }
@@ -241,31 +241,12 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "blockNumber",
-        "type": "uint256"
-      }
-    ],
-    "name": "executionStateRootByBlockNumber",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "head",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "slot",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -291,10 +272,24 @@
         "internalType": "bytes32",
         "name": "stateRoot",
         "type": "bytes32"
-      },
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "slot",
+        "type": "uint256"
+      }
+    ],
+    "name": "stateRoot",
+    "outputs": [
       {
         "internalType": "bytes32",
-        "name": "executionStateRoot",
+        "name": "",
         "type": "bytes32"
       }
     ],
@@ -309,6 +304,11 @@
             "internalType": "bytes4",
             "name": "forkVersion",
             "type": "bytes4"
+          },
+          {
+            "internalType": "uint64",
+            "name": "signatureSlot",
+            "type": "uint64"
           },
           {
             "components": [
@@ -338,7 +338,7 @@
                 "type": "bytes32"
               }
             ],
-            "internalType": "struct LightClient.BeaconBlockHeader",
+            "internalType": "struct BeaconLightClient.BeaconBlockHeader",
             "name": "attestedHeader",
             "type": "tuple"
           },
@@ -370,7 +370,7 @@
                 "type": "bytes32"
               }
             ],
-            "internalType": "struct LightClient.BeaconBlockHeader",
+            "internalType": "struct BeaconLightClient.BeaconBlockHeader",
             "name": "finalizedHeader",
             "type": "tuple"
           },
@@ -561,7 +561,7 @@
             "type": "bytes32[]"
           }
         ],
-        "internalType": "struct LightClient.LightClientUpdate",
+        "internalType": "struct BeaconLightClient.LightClientUpdate",
         "name": "update",
         "type": "tuple"
       }

@@ -17,6 +17,7 @@ type BeaconBlockHeader struct {
 
 type Update struct {
 	ForkVersion             [4]byte           `json:"forkVersion" abi:"forkVersion"`
+	SignatureSlot           uint64            `json:"signatureSlot" abi:"signatureSlot"`
 	AttestedHeader          BeaconBlockHeader `json:"attestedHeader" abi:"attestedHeader"`
 	FinalizedHeader         BeaconBlockHeader `json:"finalizedHeader" abi:"finalizedHeader"`
 	SyncCommittee           []crypto.G1Point  `json:"syncCommittee" abi:"syncCommittee"`
