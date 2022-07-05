@@ -47,7 +47,7 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
 
         // sync committee participants for signing attestedHeader, either a current_sync_committee or next_sync_committee from
         // from the latest proven header
-        BLS12381.G1Point[SYNC_COMMITTEE_SIZE] syncCommittee;
+        BLS12381.G1PointCompressed[SYNC_COMMITTEE_SIZE] syncCommittee;
         // aggregated PK of participating syncCommittee keys, as described by syncAggregateBitList
         BLS12381.G1Point syncCommitteeAggregated;
         // validity merkle proof of current_sync_committee/next_sync_committee against the current known header

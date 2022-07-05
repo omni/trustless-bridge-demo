@@ -28,6 +28,16 @@ library BLS12381 {
         Fp Y;
     }
 
+    // G1PointCompressed represents a compressed version of G1Point
+    // A  == (G1Point.B.a << 128) + G1Point.X.a
+    // XB == G1Point.X.b
+    // YB == G1Point.Y.b
+    struct G1PointCompressed {
+        uint256 A;
+        uint256 XB;
+        uint256 YB;
+    }
+
     // G2Point represents a point on BLS12-381 over Fp2 with coordinates (X,Y);
     struct G2Point {
         Fp2 X;
@@ -39,17 +49,20 @@ library BLS12381 {
 
         bytes memory output = new bytes(256);
         bytes32 chunk = sha256(abi.encodePacked(b0, uint8(0x01), BLS_SIG_DST));
+        uint256 ptr;
         assembly {
-            mstore(add(output, 0x20), chunk)
+            ptr := add(output, 0x20)
+            mstore(ptr, chunk)
         }
         for (uint256 i = 2; i < 9; i++) {
             bytes32 input;
             assembly {
-                input := xor(b0, mload(add(output, mul(0x20, sub(i, 1)))))
+                input := xor(b0, mload(ptr))
             }
+            ptr += 32;
             chunk = sha256(abi.encodePacked(input, uint8(i), BLS_SIG_DST));
             assembly {
-                mstore(add(output, mul(0x20, i)), chunk)
+                mstore(ptr, chunk)
             }
         }
 
@@ -136,13 +149,11 @@ library BLS12381 {
     }
 
     function mapToCurve(Fp2 memory fieldElement) private view returns (G2Point memory result) {
-        uint256[4] memory input;
+        uint256[8] memory input;
         input[0] = fieldElement.a.a;
         input[1] = fieldElement.a.b;
         input[2] = fieldElement.b.a;
         input[3] = fieldElement.b.b;
-
-        uint256[8] memory output;
 
         bool success;
         assembly {
@@ -151,7 +162,7 @@ library BLS12381 {
                 BLS12_381_MAP_FIELD_TO_CURVE_PRECOMPILE_ADDRESS,
                 input,
                 128,
-                output,
+                input,
                 256
             )
         }
@@ -159,29 +170,27 @@ library BLS12381 {
 
         return G2Point(
             Fp2(
-                Fp(output[0], output[1]),
-                Fp(output[2], output[3])
+                Fp(input[0], input[1]),
+                Fp(input[2], input[3])
             ),
             Fp2(
-                Fp(output[4], output[5]),
-                Fp(output[6], output[7])
+                Fp(input[4], input[5]),
+                Fp(input[6], input[7])
             )
         );
     }
 
-    function addG1(G1Point memory a, G1Point memory b) internal view returns (G1Point memory) {
+    function addG1(G1Point memory a, G1PointCompressed memory b) internal view returns (G1Point memory result) {
         uint256[8] memory input;
         input[0]  = a.X.a;
         input[1]  = a.X.b;
         input[2]  = a.Y.a;
         input[3]  = a.Y.b;
 
-        input[4]  = b.X.a;
-        input[5]  = b.X.b;
-        input[6]  = b.Y.a;
-        input[7]  = b.Y.b;
-
-        uint256[4] memory output;
+        input[4]  = b.A & 0xffffffffffffffffffffffffffffffff;
+        input[5]  = b.XB;
+        input[6]  = b.A >> 128;
+        input[7]  = b.YB;
 
         bool success;
         assembly {
@@ -190,15 +199,15 @@ library BLS12381 {
                 BLS12_381_G1_ADD_ADDRESS,
                 input,
                 256,
-                output,
+                input,
                 128
             )
         }
         require(success, "call to addition in G1 precompile failed");
 
         return G1Point(
-            Fp(output[0], output[1]),
-            Fp(output[2], output[3])
+            Fp(input[0], input[1]),
+            Fp(input[2], input[3])
         );
     }
 
@@ -222,8 +231,6 @@ library BLS12381 {
         input[14] = b.Y.b.a;
         input[15] = b.Y.b.b;
 
-        uint256[8] memory output;
-
         bool success;
         assembly {
             success := staticcall(
@@ -231,7 +238,7 @@ library BLS12381 {
                 BLS12_381_G2_ADD_ADDRESS,
                 input,
                 512,
-                output,
+                input,
                 256
             )
         }
@@ -239,12 +246,12 @@ library BLS12381 {
 
         return G2Point(
             Fp2(
-                Fp(output[0], output[1]),
-                Fp(output[2], output[3])
+                Fp(input[0], input[1]),
+                Fp(input[2], input[3])
             ),
             Fp2(
-                Fp(output[4], output[5]),
-                Fp(output[6], output[7])
+                Fp(input[4], input[5]),
+                Fp(input[6], input[7])
             )
         );
     }
@@ -289,8 +296,6 @@ library BLS12381 {
         input[22] =  signature.Y.b.a;
         input[23] =  signature.Y.b.b;
 
-        uint256[1] memory output;
-
         bool success;
         assembly {
             success := staticcall(
@@ -298,13 +303,13 @@ library BLS12381 {
                 BLS12_381_PAIRING_PRECOMPILE_ADDRESS,
                 input,
                 768,
-                output,
+                input,
                 32
             )
         }
         require(success, "call to pairing precompile failed");
 
-        return output[0] == 1;
+        return input[0] == 1;
     }
 
     function verifyBLSSignature(

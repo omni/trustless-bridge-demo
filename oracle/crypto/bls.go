@@ -21,6 +21,13 @@ type G1Point struct {
 	Y   Fp `json:"Y"`
 }
 
+type G1PointCompressed struct {
+	raw blscommon.PublicKey
+	A   *big.Int `json:"A,string"`
+	XB  *big.Int `json:"XB,string"`
+	YB  *big.Int `json:"YB,string"`
+}
+
 type Fp2 struct {
 	A Fp `json:"a"`
 	B Fp `json:"b"`
@@ -44,6 +51,14 @@ func MustDecodePK(b []byte) G1Point {
 	return PkToG1(pk)
 }
 
+func MustDecodePKCompressed(b []byte) G1PointCompressed {
+	pk, err := blst.PublicKeyFromBytes(b)
+	if err != nil {
+		panic(err)
+	}
+	return PkToG1Compressed(pk)
+}
+
 func MustDecodeSig(b []byte) G2Point {
 	sig, err := blst.SignatureFromBytes(b)
 	if err != nil {
@@ -57,9 +72,10 @@ func Verify(hash common.Hash, domainRoot common.Hash, pk G1Point, sig G2Point) b
 	return sig.raw.Verify(pk.raw, root[:])
 }
 
-func AddG1Points(a, b *G1Point) *G1Point {
+func AddG1Points(a *G1Point, b *G1PointCompressed) *G1Point {
 	if a == nil {
-		return b
+		x := PkToG1(b.raw)
+		return &x
 	}
 	x := PkToG1(a.raw.Aggregate(b.raw))
 	return &x
@@ -77,6 +93,19 @@ func PkToG1(pk blscommon.PublicKey) G1Point {
 			A: big.NewInt(0).SetBytes(b[48:64]),
 			B: big.NewInt(0).SetBytes(b[64:96]),
 		},
+	}
+}
+
+func PkToG1Compressed(pk blscommon.PublicKey) G1PointCompressed {
+	b := new(blstbind.P1Affine).Uncompress(pk.Marshal()).Serialize()
+	a := make([]byte, 32)
+	copy(a[:16], b[48:64])
+	copy(a[16:], b[0:16])
+	return G1PointCompressed{
+		raw: pk,
+		A:   big.NewInt(0).SetBytes(a),
+		XB:  big.NewInt(0).SetBytes(b[16:48]),
+		YB:  big.NewInt(0).SetBytes(b[64:96]),
 	}
 }
 

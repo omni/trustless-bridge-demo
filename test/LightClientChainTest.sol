@@ -5,8 +5,6 @@ import "../contracts/light_client/LightClientChain.sol";
 import "../contracts/light_client/mocks/BeaconLightClientMock.sol";
 
 contract LightClientChainTest is Test {
-    bytes32 emptyRoot = bytes32(0);
-
     BeaconLightClientMock homeLightClient;
     BeaconLightClientMock foreignLightClient;
     LightClientChain homeChain;

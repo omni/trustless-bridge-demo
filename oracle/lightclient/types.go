@@ -16,30 +16,30 @@ type BeaconBlockHeader struct {
 }
 
 type Update struct {
-	ForkVersion             [4]byte           `json:"forkVersion" abi:"forkVersion"`
-	SignatureSlot           uint64            `json:"signatureSlot" abi:"signatureSlot"`
-	AttestedHeader          BeaconBlockHeader `json:"attestedHeader" abi:"attestedHeader"`
-	FinalizedHeader         BeaconBlockHeader `json:"finalizedHeader" abi:"finalizedHeader"`
-	SyncCommittee           []crypto.G1Point  `json:"syncCommittee" abi:"syncCommittee"`
-	SyncCommitteeAggregated crypto.G1Point    `json:"syncCommitteeAggregated" abi:"syncCommitteeAggregated"`
-	SyncAggregateSignature  crypto.G2Point    `json:"syncAggregateSignature" abi:"syncAggregateSignature"`
-	SyncAggregateBitList    []common.Hash     `json:"syncAggregateBitList" abi:"syncAggregateBitList"`
-	SyncCommitteeBranch     []common.Hash     `json:"syncCommitteeBranch" abi:"syncCommitteeBranch"`
-	FinalityBranch          []common.Hash     `json:"finalityBranch" abi:"finalityBranch"`
+	ForkVersion             [4]byte                    `json:"forkVersion" abi:"forkVersion"`
+	SignatureSlot           uint64                     `json:"signatureSlot" abi:"signatureSlot"`
+	AttestedHeader          BeaconBlockHeader          `json:"attestedHeader" abi:"attestedHeader"`
+	FinalizedHeader         BeaconBlockHeader          `json:"finalizedHeader" abi:"finalizedHeader"`
+	SyncCommittee           []crypto.G1PointCompressed `json:"syncCommittee" abi:"syncCommittee"`
+	SyncCommitteeAggregated crypto.G1Point             `json:"syncCommitteeAggregated" abi:"syncCommitteeAggregated"`
+	SyncAggregateSignature  crypto.G2Point             `json:"syncAggregateSignature" abi:"syncAggregateSignature"`
+	SyncAggregateBitList    []common.Hash              `json:"syncAggregateBitList" abi:"syncAggregateBitList"`
+	SyncCommitteeBranch     []common.Hash              `json:"syncCommitteeBranch" abi:"syncCommitteeBranch"`
+	FinalityBranch          []common.Hash              `json:"finalityBranch" abi:"finalityBranch"`
 }
 
 type SyncCommittee struct {
-	PublicKeys   []crypto.G1Point
+	PublicKeys   []crypto.G1PointCompressed
 	AggregateKey crypto.G1Point
 }
 
 func ConvertToSyncCommittee(cm *ethpb2.SyncCommittee) *SyncCommittee {
 	committee := &SyncCommittee{
-		PublicKeys:   make([]crypto.G1Point, len(cm.Pubkeys)),
+		PublicKeys:   make([]crypto.G1PointCompressed, len(cm.Pubkeys)),
 		AggregateKey: crypto.MustDecodePK(cm.AggregatePubkey),
 	}
 	for i, pk := range cm.Pubkeys {
-		committee.PublicKeys[i] = crypto.MustDecodePK(pk)
+		committee.PublicKeys[i] = crypto.MustDecodePKCompressed(pk)
 	}
 	return committee
 }

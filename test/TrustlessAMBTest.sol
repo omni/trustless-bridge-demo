@@ -5,8 +5,6 @@ import "../contracts/amb/TrustlessAMB.sol";
 import "../contracts/light_client/mocks/LightClientChainMock.sol";
 
 contract TrustlessAMBTest is Test {
-    bytes32 emptyRoot = bytes32(0);
-
     LightClientChainMock homeChain;
     LightClientChainMock foreignChain;
     TrustlessAMB home;
