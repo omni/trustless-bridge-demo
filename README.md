@@ -124,3 +124,17 @@ It will print few usefull numbers:
 In order to execute the message, you must first wait until the far enough block header is verified by the Light Client worker.
 The script will print an error, if current block header is not enough.
 Typically, the message can be executed within ~2.5 epochs since it was sent (~4 minutes).
+
+### Launch Blockscout
+For better understanding of what is going on, you can quickly launch two Blockscout instances for both networks and see all events and transactions there.
+```shell
+./scripts/start_explorers.sh
+```
+Home network explorer will be available at `http://localhost:4001`.
+Foreign network explorer will be available at `http://localhost:4002`.
+
+Once explorers will be ready to use, you can conveniently verify all deployed contracts:
+```shell
+./scripts/verify_contracts.sh
+```
+
