@@ -476,28 +476,6 @@
           {
             "components": [
               {
-                "internalType": "uint256",
-                "name": "A",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "XB",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "YB",
-                "type": "uint256"
-              }
-            ],
-            "internalType": "struct BLS12381.G1PointCompressed[512]",
-            "name": "syncCommittee",
-            "type": "tuple[512]"
-          },
-          {
-            "components": [
-              {
                 "components": [
                   {
                     "internalType": "uint256",
@@ -533,8 +511,30 @@
               }
             ],
             "internalType": "struct BLS12381.G1Point",
-            "name": "syncCommitteeAggregated",
+            "name": "syncAggregatePubkey",
             "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "A",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "XB",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "YB",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct BLS12381.G1PointCompressed[512]",
+            "name": "syncCommittee",
+            "type": "tuple[512]"
           },
           {
             "internalType": "bytes32[]",

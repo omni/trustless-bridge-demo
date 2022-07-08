@@ -16,16 +16,16 @@ type BeaconBlockHeader struct {
 }
 
 type Update struct {
-	ForkVersion             [4]byte                    `json:"forkVersion" abi:"forkVersion"`
-	SignatureSlot           uint64                     `json:"signatureSlot" abi:"signatureSlot"`
-	AttestedHeader          BeaconBlockHeader          `json:"attestedHeader" abi:"attestedHeader"`
-	FinalizedHeader         BeaconBlockHeader          `json:"finalizedHeader" abi:"finalizedHeader"`
-	SyncCommittee           []crypto.G1PointCompressed `json:"syncCommittee" abi:"syncCommittee"`
-	SyncCommitteeAggregated crypto.G1Point             `json:"syncCommitteeAggregated" abi:"syncCommitteeAggregated"`
-	SyncAggregateSignature  crypto.G2Point             `json:"syncAggregateSignature" abi:"syncAggregateSignature"`
-	SyncAggregateBitList    []common.Hash              `json:"syncAggregateBitList" abi:"syncAggregateBitList"`
-	SyncCommitteeBranch     []common.Hash              `json:"syncCommitteeBranch" abi:"syncCommitteeBranch"`
-	FinalityBranch          []common.Hash              `json:"finalityBranch" abi:"finalityBranch"`
+	ForkVersion            [4]byte                    `json:"forkVersion" abi:"forkVersion"`
+	SignatureSlot          uint64                     `json:"signatureSlot" abi:"signatureSlot"`
+	AttestedHeader         BeaconBlockHeader          `json:"attestedHeader" abi:"attestedHeader"`
+	FinalizedHeader        BeaconBlockHeader          `json:"finalizedHeader" abi:"finalizedHeader"`
+	SyncCommittee          []crypto.G1PointCompressed `json:"syncCommittee" abi:"syncCommittee"`
+	SyncAggregatePubkey    crypto.G1Point             `json:"syncAggregatePubkey" abi:"syncAggregatePubkey"`
+	SyncAggregateSignature crypto.G2Point             `json:"syncAggregateSignature" abi:"syncAggregateSignature"`
+	SyncAggregateBitList   []common.Hash              `json:"syncAggregateBitList" abi:"syncAggregateBitList"`
+	SyncCommitteeBranch    []common.Hash              `json:"syncCommitteeBranch" abi:"syncCommitteeBranch"`
+	FinalityBranch         []common.Hash              `json:"finalityBranch" abi:"finalityBranch"`
 }
 
 type SyncCommittee struct {

@@ -154,14 +154,14 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	forkVersion := [4]byte{}
 	copy(forkVersion[:], common.FromHex(c.Spec.BellatrixForkVersion))
 	update := &Update{
-		ForkVersion:             forkVersion,
-		SignatureSlot:           uint64(head.Slot),
-		AttestedHeader:          attestedHeader,
-		SyncCommitteeAggregated: *pk,
-		SyncAggregateSignature:  sig,
-		SyncCommitteeBranch:     proof.Path,
-		FinalityBranch:          []common.Hash{},
-		SyncCommittee:           cmt.PublicKeys,
+		ForkVersion:            forkVersion,
+		SignatureSlot:          uint64(head.Slot),
+		AttestedHeader:         attestedHeader,
+		SyncAggregatePubkey:    *pk,
+		SyncAggregateSignature: sig,
+		SyncCommitteeBranch:    proof.Path,
+		FinalityBranch:         []common.Hash{},
+		SyncCommittee:          cmt.PublicKeys,
 	}
 	if c.WithFinality {
 		log.Println("Fetching full beacon state for slot", attestedHeader.Slot)

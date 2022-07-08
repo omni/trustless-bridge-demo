@@ -44,12 +44,12 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         // aggregated signature of attested header root
         BLS12381.G2Point syncAggregateSignature;
         bytes32[SYNC_COMMITTEE_BIT_LIST_WORDS_SIZE] syncAggregateBitList;
+        // aggregated PK of participating syncCommittee keys, as described by syncAggregateBitList
+        BLS12381.G1Point syncAggregatePubkey;
 
         // sync committee participants for signing attestedHeader, either a current_sync_committee or next_sync_committee from
         // from the latest proven header
         BLS12381.G1PointCompressed[SYNC_COMMITTEE_SIZE] syncCommittee;
-        // aggregated PK of participating syncCommittee keys, as described by syncAggregateBitList
-        BLS12381.G1Point syncCommitteeAggregated;
         // validity merkle proof of current_sync_committee/next_sync_committee against the current known header
         bytes32[] syncCommitteeBranch;
     }
@@ -114,7 +114,7 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         // aggregate sync committee pub keys
         (uint256 count, BLS12381.G1Point memory aggregatedPK) = _aggregateRemainingPubkeys(
             update.syncCommittee,
-            update.syncCommitteeAggregated,
+            update.syncAggregatePubkey,
             update.syncAggregateBitList
         );
         require(count >= MIN_SYNC_COMMITTEE_PARTICIPANTS, "Not enough signatures");
@@ -127,7 +127,7 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         // verify sync committee signature
         bytes32 domainRoot = _syncDomainRoot(update.forkVersion);
         bytes32 signRoot = sha256(abi.encodePacked(attestedRoot, domainRoot));
-        require(BLS12381.verifyBLSSignature(signRoot, update.syncCommitteeAggregated, update.syncAggregateSignature), "Invalid signature");
+        require(BLS12381.verifyBLSSignature(signRoot, update.syncAggregatePubkey, update.syncAggregateSignature), "Invalid signature");
 
         IBeaconLightClient.StorageBeaconBlockHeader memory compactHeader = IBeaconLightClient.StorageBeaconBlockHeader(
             activeRoot,
