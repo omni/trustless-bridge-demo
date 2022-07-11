@@ -532,9 +532,14 @@
                 "type": "uint256"
               }
             ],
-            "internalType": "struct BLS12381.G1PointCompressed[512]",
-            "name": "syncCommittee",
-            "type": "tuple[512]"
+            "internalType": "struct BLS12381.G1PointCompressed[]",
+            "name": "missedSyncCommitteeParticipants",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "syncCommitteeRootDecommitments",
+            "type": "bytes32[]"
           },
           {
             "internalType": "bytes32[]",

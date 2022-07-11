@@ -18,6 +18,12 @@ type MerkleProof struct {
 	Path     []common.Hash
 }
 
+type MerkleMultiProof struct {
+	genIndices    []int
+	leavesHashes  []common.Hash
+	Decommitments []common.Hash
+}
+
 func NewVectorMerkleTree(leaves ...common.Hash) *MerkleTree {
 	return &MerkleTree{
 		isList: false,
@@ -108,6 +114,87 @@ func (t *MerkleTree) MakeProof(idx int) *MerkleProof {
 	return &MerkleProof{
 		genIndex: idx + t.limit,
 		Path:     path,
+	}
+}
+
+func (t *MerkleTree) MakeMultiProof(indices []int) *MerkleMultiProof {
+	if len(indices) == 0 {
+		return &MerkleMultiProof{
+			Decommitments: []common.Hash{t.Hash()},
+		}
+	}
+
+	genIndices := make([]int, 0, len(indices))
+	leavesHashes := make([]common.Hash, 0, len(indices))
+	decommitments := make([]common.Hash, 0, len(indices))
+	known := make(map[int]bool, len(indices))
+	hashes := make(map[int]common.Hash, len(indices))
+	for i := 0; i < t.limit; i++ {
+		if i < len(t.leaves) {
+			hashes[i+t.limit] = t.leaves[i]
+		} else {
+			hashes[i+t.limit] = ZeroHash(0)
+		}
+	}
+	for i := len(indices) - 1; i >= 0; i-- {
+		if indices[i] < 0 || indices[i] >= len(t.leaves) {
+			panic("index out of bounds")
+		}
+		genIndices = append(genIndices, indices[i]+t.limit)
+		leavesHashes = append(leavesHashes, t.leaves[indices[i]])
+		known[indices[i]+t.limit] = true
+	}
+
+	for i := t.limit*2 - 1; i > 1; i -= 2 {
+		left := known[i-1]
+		right := known[i]
+		if left && !right {
+			decommitments = append(decommitments, hashes[i])
+		}
+		if !left && right {
+			decommitments = append(decommitments, hashes[i-1])
+		}
+		known[i/2] = left || right
+		hashes[i/2] = Sha256Hash(hashes[i-1].Bytes(), hashes[i].Bytes())
+	}
+
+	return &MerkleMultiProof{
+		genIndices:    genIndices,
+		leavesHashes:  leavesHashes,
+		Decommitments: decommitments,
+	}
+}
+
+func (p *MerkleMultiProof) ReconstructRoot() common.Hash {
+	if len(p.genIndices) == 0 {
+		return p.Decommitments[0]
+	}
+
+	indices := p.genIndices
+	hashes := p.leavesHashes
+
+	head, tail, di := 0, len(indices), 0
+
+	for {
+		index := indices[head]
+		hash := hashes[head]
+		head++
+
+		if index == 1 {
+			return hash
+		} else if index&1 == 0 {
+			hash = Sha256Hash(hash.Bytes(), p.Decommitments[di].Bytes())
+			di++
+		} else if head != tail && indices[head] == index-1 {
+			hash = Sha256Hash(hashes[head].Bytes(), hash.Bytes())
+			head++
+		} else {
+			hash = Sha256Hash(p.Decommitments[di].Bytes(), hash.Bytes())
+			di++
+		}
+		indices = append(indices, index/2)
+		hashes = append(hashes, hash)
+		tail++
 	}
 }
 

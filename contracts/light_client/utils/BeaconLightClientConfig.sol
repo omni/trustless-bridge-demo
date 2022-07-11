@@ -9,7 +9,6 @@ contract BeaconLightClientConfig {
     uint256 public constant SYNC_COMMITTEE_SIZE = 512;
 
     uint256 internal constant SYNC_COMMITTEE_BIT_LIST_WORDS_SIZE = 2;
-    uint256 internal constant SYNC_COMMITTEE_BRANCH_SIZE = 10;
 
     // get_generalized_index(BeaconState, 'finalized_checkpoint', 'root')
     uint256 internal constant FINALIZED_ROOT_INDEX = 105;

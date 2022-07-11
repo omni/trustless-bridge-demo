@@ -141,9 +141,22 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	}
 
 	var pk *crypto.G1Point
-	for _, i := range head.Body.SyncAggregate.SyncCommitteeBits.BitIndices() {
-		pk = crypto.AddG1Points(pk, &cmt.PublicKeys[i])
+	var missingPKs []crypto.G1PointCompressed
+	var hashedPublicKeys []common.Hash
+	var indices []int
+	for i := 0; i < c.Spec.SyncCommitteeSize; i++ {
+		hashedPublicKeys = append(hashedPublicKeys, crypto.HashG1PointCompressed(&cmt.PublicKeys[i]))
+		if head.Body.SyncAggregate.SyncCommitteeBits.BitAt(uint64(i)) {
+			pk = crypto.AddG1Points(pk, &cmt.PublicKeys[i])
+		} else {
+			indices = append(indices, i)
+		}
 	}
+	for i := range indices {
+		missingPKs = append(missingPKs, cmt.PublicKeys[indices[len(indices)-1-i]])
+	}
+	tree := crypto.NewVectorMerkleTree(hashedPublicKeys...)
+	multiProof := tree.MakeMultiProof(indices)
 	log.Printf("Verifying sync committee signature, aggregated pk = %s\n", pk.String())
 	// check that already known and proven sync committee signed some block header
 	sig := crypto.MustDecodeSig(head.Body.SyncAggregate.SyncCommitteeSignature)
@@ -154,14 +167,15 @@ func (c *LightClient) MakeUpdate(curSlot uint64, targetSlot uint64) (*Update, er
 	forkVersion := [4]byte{}
 	copy(forkVersion[:], common.FromHex(c.Spec.BellatrixForkVersion))
 	update := &Update{
-		ForkVersion:            forkVersion,
-		SignatureSlot:          uint64(head.Slot),
-		AttestedHeader:         attestedHeader,
-		SyncAggregatePubkey:    *pk,
-		SyncAggregateSignature: sig,
-		SyncCommitteeBranch:    proof.Path,
-		FinalityBranch:         []common.Hash{},
-		SyncCommittee:          cmt.PublicKeys,
+		ForkVersion:                     forkVersion,
+		SignatureSlot:                   uint64(head.Slot),
+		AttestedHeader:                  attestedHeader,
+		SyncAggregatePubkey:             *pk,
+		SyncAggregateSignature:          sig,
+		SyncCommitteeBranch:             proof.Path,
+		FinalityBranch:                  []common.Hash{},
+		MissedSyncCommitteeParticipants: missingPKs,
+		SyncCommitteeRootDecommitments:  multiProof.Decommitments,
 	}
 	if c.WithFinality {
 		log.Println("Fetching full beacon state for slot", attestedHeader.Slot)

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/prysmaticlabs/prysm/crypto/bls/blst"
 	blscommon "github.com/prysmaticlabs/prysm/crypto/bls/common"
+	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
 	blstbind "github.com/supranational/blst/bindings/go"
 )
 
@@ -134,4 +135,8 @@ func SigToG2(sig blscommon.Signature) G2Point {
 			},
 		},
 	}
+}
+
+func HashG1PointCompressed(point *G1PointCompressed) common.Hash {
+	return Sha256Hash(bytesutil.PadTo(point.raw.Marshal(), 64))
 }

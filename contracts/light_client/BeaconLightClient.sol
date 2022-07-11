@@ -47,9 +47,10 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         // aggregated PK of participating syncCommittee keys, as described by syncAggregateBitList
         BLS12381.G1Point syncAggregatePubkey;
 
-        // sync committee participants for signing attestedHeader, either a current_sync_committee or next_sync_committee from
+        // sync committee participants that missed their signing duty, either from a current_sync_committee or next_sync_committee
         // from the latest proven header
-        BLS12381.G1PointCompressed[SYNC_COMMITTEE_SIZE] syncCommittee;
+        BLS12381.G1PointCompressed[] missedSyncCommitteeParticipants;
+        bytes32[] syncCommitteeRootDecommitments;
         // validity merkle proof of current_sync_committee/next_sync_committee against the current known header
         bytes32[] syncCommitteeBranch;
     }
@@ -112,21 +113,23 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         }
 
         // aggregate sync committee pub keys
-        (uint256 count, BLS12381.G1Point memory aggregatedPK) = _aggregateRemainingPubkeys(
-            update.syncCommittee,
+        uint256 count = SYNC_COMMITTEE_SIZE - update.missedSyncCommitteeParticipants.length;
+        require(count >= MIN_SYNC_COMMITTEE_PARTICIPANTS, "Not enough signatures");
+        (uint256[] memory indices, bytes32[] memory leaves, BLS12381.G1Point memory aggregatedPK) = _aggregateMissingPubkeys(
+            update.missedSyncCommitteeParticipants,
             update.syncAggregatePubkey,
             update.syncAggregateBitList
         );
-        require(count >= MIN_SYNC_COMMITTEE_PARTICIPANTS, "Not enough signatures");
 
         // verify that given sync committee is in the latest known block
-        bytes32 syncCommitteeRoot = _hashSyncCommittee(update.syncCommittee, aggregatedPK);
-        bytes32 restoredStateRoot = Merkle.restoreMerkleRoot(syncCommitteeRoot, syncCommitteeIndex, update.syncCommitteeBranch);
-        require(headers[head].stateRoot == restoredStateRoot, "Cannot verify sync committee proof");
+        bytes32 syncCommitteeRoot = Merkle.restoreMerkleMultiRoot(indices, leaves, update.syncCommitteeRootDecommitments);
+        syncCommitteeRoot = Merkle.hashPair(syncCommitteeRoot, _hashG1(aggregatedPK));
+        syncCommitteeRoot = Merkle.restoreMerkleRoot(syncCommitteeRoot, syncCommitteeIndex, update.syncCommitteeBranch);
+        require(headers[head].stateRoot == syncCommitteeRoot, "Cannot verify sync committee proof");
 
         // verify sync committee signature
         bytes32 domainRoot = _syncDomainRoot(update.forkVersion);
-        bytes32 signRoot = sha256(abi.encodePacked(attestedRoot, domainRoot));
+        bytes32 signRoot = Merkle.hashPair(attestedRoot, domainRoot);
         require(BLS12381.verifyBLSSignature(signRoot, update.syncAggregatePubkey, update.syncAggregateSignature), "Invalid signature");
 
         IBeaconLightClient.StorageBeaconBlockHeader memory compactHeader = IBeaconLightClient.StorageBeaconBlockHeader(
@@ -188,25 +191,25 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         return (syncDomainRoot >> 32) | bytes32(uint256(0x07 << 248));
     }
 
-    function _headerRoot(BeaconBlockHeader memory _header) internal pure returns (bytes32) {
-        return sha256(abi.encodePacked(
-                sha256(abi.encodePacked(
-                    sha256(abi.encodePacked(
+    function _headerRoot(BeaconBlockHeader memory _header) internal view returns (bytes32) {
+        return Merkle.hashPair(
+                Merkle.hashPair(
+                    Merkle.hashPair(
                         LittleEndian.encode(_header.slot),
                         LittleEndian.encode(_header.proposerIndex)
-                    )),
-                    sha256(abi.encodePacked(
+                    ),
+                    Merkle.hashPair(
                         _header.parentRoot,
                         _header.stateRoot
-                    ))
-                )),
-                sha256(abi.encodePacked(
-                    sha256(abi.encodePacked(
+                    )
+                ),
+                Merkle.hashPair(
+                    Merkle.hashPair(
                         _header.bodyRoot,
-                        uint256(0)
-                    )),
-                    bytes32(0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b) // sha256(abi.encodePacked(uint256(0), uint256(0)))
-                ))
-            ));
+                        bytes32(0)
+                    ),
+                    bytes32(0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b) // Merkle.hashPair(bytes32(0), bytes32(0))
+                )
+            );
     }
 }

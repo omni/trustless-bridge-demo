@@ -30,3 +30,20 @@ func TestSimpleMerkleRoot(t *testing.T) {
 		NewVectorMerkleTree(UintToHash(1), UintToHash(2)).Hash(),
 	)
 }
+
+func TestMerkleMultiProof(t *testing.T) {
+	leaves := make([]common.Hash, 512)
+	for i := range leaves {
+		leaves[i] = UintToHash(uint64(i + 1))
+	}
+	tree := NewVectorMerkleTree(leaves...)
+
+	proof := tree.MakeMultiProof([]int{3, 7, 15, 16, 17, 35, 87, 123, 124, 156, 199, 417, 483, 511})
+	assert.Equal(t, tree.Hash(), proof.ReconstructRoot())
+
+	proof = tree.MakeMultiProof([]int{17})
+	assert.Equal(t, tree.Hash(), proof.ReconstructRoot())
+
+	proof = tree.MakeMultiProof(nil)
+	assert.Equal(t, tree.Hash(), proof.ReconstructRoot())
+}
