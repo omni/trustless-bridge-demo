@@ -6,7 +6,7 @@ library Merkle {
         bytes32 leaf,
         uint256 genIndex,
         bytes32[] memory proof
-    ) internal returns (bytes32) {
+    ) internal pure returns (bytes32) {
         require(genIndex >> proof.length == 1, "invalid proof length");
         for (uint256 i = 0; i < proof.length; i++) {
             if (genIndex & (1 << i) == 0) {

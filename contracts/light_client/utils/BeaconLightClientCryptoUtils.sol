@@ -9,7 +9,7 @@ contract BeaconLightClientCryptoUtils is BeaconLightClientConfig {
         BLS12381.G1PointCompressed[SYNC_COMMITTEE_SIZE] memory pks,
         BLS12381.G1Point memory aggregatedPK,
         bytes32[SYNC_COMMITTEE_BIT_LIST_WORDS_SIZE] memory aggregationBitList
-    ) internal returns (uint256, BLS12381.G1Point memory) {
+    ) internal view returns (uint256, BLS12381.G1Point memory) {
         BLS12381.G1Point memory result = aggregatedPK;
         uint256 count = SYNC_COMMITTEE_SIZE;
         uint256 word = 0;
@@ -29,7 +29,7 @@ contract BeaconLightClientCryptoUtils is BeaconLightClientConfig {
     function _hashSyncCommittee(
         BLS12381.G1PointCompressed[SYNC_COMMITTEE_SIZE] memory syncCommittee,
         BLS12381.G1Point memory aggregatedPK
-    ) internal returns (bytes32) {
+    ) internal pure returns (bytes32) {
         bytes32[SYNC_COMMITTEE_BRANCH_SIZE] memory branch;
         for (uint256 i = 0; i < SYNC_COMMITTEE_SIZE; i++) {
             bytes32 hash = _hashG1Compressed(syncCommittee[i]);
@@ -43,7 +43,7 @@ contract BeaconLightClientCryptoUtils is BeaconLightClientConfig {
         return sha256(abi.encodePacked(branch[SYNC_COMMITTEE_BRANCH_SIZE - 1], _hashG1(aggregatedPK)));
     }
 
-    function _hashG1(BLS12381.G1Point memory point) internal returns (bytes32) {
+    function _hashG1(BLS12381.G1Point memory point) internal pure returns (bytes32) {
         uint256 a = point.Y.a;
         uint256 b = point.Y.b;
         if (a > 0x0d0088f51cbff34d258dd3db21a5d66b || a == 0x0d0088f51cbff34d258dd3db21a5d66b && b > 0xb23ba5c279c2895fb39869507b587b120f55ffff58a9ffffdcff7fffffffd555) {
@@ -54,7 +54,7 @@ contract BeaconLightClientCryptoUtils is BeaconLightClientConfig {
         return sha256(abi.encodePacked(uint128(a), point.X.b, uint128(0)));
     }
 
-    function _hashG1Compressed(BLS12381.G1PointCompressed memory point) internal returns (bytes32) {
+    function _hashG1Compressed(BLS12381.G1PointCompressed memory point) internal pure returns (bytes32) {
         uint256 a = point.A >> 128;
         uint256 b = point.YB;
         if (a > 0x0d0088f51cbff34d258dd3db21a5d66b || a == 0x0d0088f51cbff34d258dd3db21a5d66b && b > 0xb23ba5c279c2895fb39869507b587b120f55ffff58a9ffffdcff7fffffffd555) {

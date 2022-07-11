@@ -175,11 +175,11 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         emit CandidateUpdated(_head, _header.root, _signatures);
     }
 
-    function _curSlot() internal returns (uint256) {
+    function _curSlot() internal view returns (uint256) {
         return (block.timestamp - GENESIS_TIME) / SECONDS_PER_SLOT;
     }
 
-    function _syncCommitteePeriod(uint256 _slot) internal returns (uint256) {
+    function _syncCommitteePeriod(uint256 _slot) internal view returns (uint256) {
         return _slot / SLOTS_PER_SYNC_COMMITTEE_PERIOD;
     }
 
@@ -188,7 +188,7 @@ contract BeaconLightClient is BeaconLightClientCryptoUtils {
         return (syncDomainRoot >> 32) | bytes32(uint256(0x07 << 248));
     }
 
-    function _headerRoot(BeaconBlockHeader memory _header) internal view returns (bytes32) {
+    function _headerRoot(BeaconBlockHeader memory _header) internal pure returns (bytes32) {
         return sha256(abi.encodePacked(
                 sha256(abi.encodePacked(
                     sha256(abi.encodePacked(
