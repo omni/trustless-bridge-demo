@@ -92,19 +92,19 @@ contract LightClientChain {
     }
 
     function hashExecutionPayload(ILightClientChain.ExecutionPayloadHeader memory payload) public view returns (bytes32) {
-        bytes32 tmp1 = sha256(abi.encodePacked(payload.parentHash, payload.feeRecipient, uint96(0)));
-        bytes32 tmp2 = sha256(abi.encodePacked(payload.stateRoot, payload.receiptsRoot));
-        bytes32 tmp3 = sha256(abi.encodePacked(payload.logsBloomRoot, payload.prevRandao));
-        bytes32 tmp4 = sha256(abi.encodePacked(LittleEndian.encode(payload.blockNumber), LittleEndian.encode(payload.gasLimit)));
-        bytes32 tmp5 = sha256(abi.encodePacked(LittleEndian.encode(payload.gasUsed), LittleEndian.encode(payload.timestamp)));
-        bytes32 tmp6 = sha256(abi.encodePacked(payload.extraDataRoot, LittleEndian.encode(payload.baseFeePerGas)));
-        bytes32 tmp7 = sha256(abi.encodePacked(payload.blockHash, payload.transactionsRoot));
-        tmp1 = sha256(abi.encodePacked(tmp1, tmp2));
-        tmp3 = sha256(abi.encodePacked(tmp3, tmp4));
-        tmp5 = sha256(abi.encodePacked(tmp5, tmp6));
-        tmp7 = sha256(abi.encodePacked(tmp7, bytes32(0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b)));
-        tmp1 = sha256(abi.encodePacked(tmp1, tmp3));
-        tmp5 = sha256(abi.encodePacked(tmp5, tmp7));
-        return sha256(abi.encodePacked(tmp1, tmp5));
+        bytes32 tmp1 = Merkle.hashPair(payload.parentHash, bytes32(uint256(uint160(payload.feeRecipient))) << 96);
+        bytes32 tmp2 = Merkle.hashPair(payload.stateRoot, payload.receiptsRoot);
+        bytes32 tmp3 = Merkle.hashPair(payload.logsBloomRoot, payload.prevRandao);
+        bytes32 tmp4 = Merkle.hashPair(LittleEndian.encode(payload.blockNumber), LittleEndian.encode(payload.gasLimit));
+        bytes32 tmp5 = Merkle.hashPair(LittleEndian.encode(payload.gasUsed), LittleEndian.encode(payload.timestamp));
+        bytes32 tmp6 = Merkle.hashPair(payload.extraDataRoot, LittleEndian.encode(payload.baseFeePerGas));
+        bytes32 tmp7 = Merkle.hashPair(payload.blockHash, payload.transactionsRoot);
+        tmp1 = Merkle.hashPair(tmp1, tmp2);
+        tmp3 = Merkle.hashPair(tmp3, tmp4);
+        tmp5 = Merkle.hashPair(tmp5, tmp6);
+        tmp7 = Merkle.hashPair(tmp7, bytes32(0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b));
+        tmp1 = Merkle.hashPair(tmp1, tmp3);
+        tmp5 = Merkle.hashPair(tmp5, tmp7);
+        return Merkle.hashPair(tmp1, tmp5);
     }
 }

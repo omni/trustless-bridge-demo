@@ -10,10 +10,10 @@ contract LightClientChainTest is Test {
     LightClientChain homeChain;
     LightClientChain foreignChain;
 
-    function zeroHash(uint n) internal pure returns (bytes32) {
+    function zeroHash(uint n) internal view returns (bytes32) {
         bytes32 x = bytes32(0);
         for (uint256 i = 0; i < n; i++) {
-            x = sha256(abi.encode(uint256(x), uint256(x)));
+            x = Merkle.hashPair(x, x);
         }
         return x;
     }
