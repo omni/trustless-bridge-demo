@@ -19,7 +19,6 @@ function verify_contract() {
 }
 
 verify_contract home ../out/BeaconLightClient.sol/BeaconLightClient.json ../contracts/light_client/BeaconLightClient.sol $HOME_LIGHT_CLIENT
-verify_contract home ../out/LightClientChain.sol/LightClientChain.json ../contracts/light_client/LightClientChain.sol $HOME_LIGHT_CLIENT_CHAIN
 verify_contract home ../out/EIP1967Proxy.sol/EIP1967Proxy.json ../contracts/amb/proxy/EIP1967Proxy.sol $HOME_AMB
 verify_contract home ../out/TrustlessAMB.sol/TrustlessAMB.json ../contracts/amb/TrustlessAMB.sol $HOME_AMB_IMPL
 verify_contract home ../out/EternalStorageProxy.sol/EternalStorageProxy.json ../contracts/omnibridge/upgradeability/EternalStorageProxy.sol $HOME_OB
@@ -28,7 +27,6 @@ verify_contract home ../out/WETH.sol/WETH.json ../contracts/omnibridge/mocks/WET
 verify_contract home ../out/WETHOmnibridgeRouter.sol/WETHOmnibridgeRouter.json ../contracts/omnibridge/helpers/WETHOmnibridgeRouter.sol $HOME_ROUTER
 
 verify_contract foreign ../out/BeaconLightClient.sol/BeaconLightClient.json ../contracts/light_client/BeaconLightClient.sol $FOREIGN_LIGHT_CLIENT
-verify_contract foreign ../out/LightClientChain.sol/LightClientChain.json ../contracts/light_client/LightClientChain.sol $FOREIGN_LIGHT_CLIENT_CHAIN
 verify_contract foreign ../out/EIP1967Proxy.sol/EIP1967Proxy.json ../contracts/amb/proxy/EIP1967Proxy.sol $FOREIGN_AMB
 verify_contract foreign ../out/TrustlessAMB.sol/TrustlessAMB.json ../contracts/amb/TrustlessAMB.sol $FOREIGN_AMB_IMPL
 verify_contract foreign ../out/EternalStorageProxy.sol/EternalStorageProxy.json ../contracts/omnibridge/upgradeability/EternalStorageProxy.sol $FOREIGN_OB

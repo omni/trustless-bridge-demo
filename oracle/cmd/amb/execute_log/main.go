@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"flag"
+	"fmt"
 	"log"
 	"math/big"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,25 +17,37 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 
+	"oracle/config"
 	"oracle/contract"
+	"oracle/lightclient"
 	"oracle/sender"
 )
 
 var (
-	sourceRPC     = flag.String("sourceRPC", "", "")
-	targetRPC     = flag.String("targetRPC", "", "")
-	sourceAMB     = flag.String("sourceAMB", "", "")
-	targetAMB     = flag.String("targetAMB", "", "")
-	targetLCChain = flag.String("targetLCChain", "", "")
-	msgNonce      = flag.Int64("msgNonce", 0, "")
-	keystore      = flag.String("keystore", "", "")
-	keystorePass  = flag.String("keystorePass", "", "")
+	sourceBeaconRPC = flag.String("sourceBeaconRPC", "", "")
+	sourceRPC       = flag.String("sourceRPC", "", "")
+	targetRPC       = flag.String("targetRPC", "", "")
+	sourceAMB       = flag.String("sourceAMB", "", "")
+	targetAMB       = flag.String("targetAMB", "", "")
+	targetLC        = flag.String("targetLC", "", "")
+	msgNonce        = flag.Int64("msgNonce", 0, "")
+	keystore        = flag.String("keystore", "", "")
+	keystorePass    = flag.String("keystorePass", "", "")
 )
 
 func main() {
 	flag.Parse()
 
 	ctx := context.Background()
+
+	lc, err := lightclient.NewLightClient(config.Eth2Config{
+		Client: config.HTTPClientConfig{
+			URL: *sourceBeaconRPC,
+		},
+	}, true)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	sourceClient, err := ethclient.Dial(*sourceRPC)
 	if err != nil {
@@ -44,69 +58,34 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	topics := [][]common.Hash{
-		{contract.AMBABI.Events["SentMessage"].ID},
-		nil,
-		{common.BigToHash(big.NewInt(*msgNonce))},
-	}
-	logs, err := sourceClient.FilterLogs(ctx, ethereum.FilterQuery{
-		Addresses: []common.Address{common.HexToAddress(*sourceAMB)},
-		Topics:    topics,
-	})
+	sentLog, err := FindSentMessageLog(ctx, sourceClient, common.HexToAddress(*sourceAMB), *msgNonce)
 	if err != nil {
 		log.Fatalln(err)
-	}
-	if len(logs) == 0 {
-		log.Fatalln("SentMessage log not found in the source network")
-	}
-	if len(logs) > 1 {
-		log.Fatalln("should be exactly one SentMessage log")
-	}
-	data := logs[0].Data
-	length := binary.BigEndian.Uint64(data[56:64])
-
-	msg := data[64 : 64+length]
-	blockNumber := logs[0].BlockNumber
-
-	to := common.HexToAddress(*targetLCChain)
-	cd, err := contract.LightClientChainABI.Pack("head")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	data, err = targetClient.CallContract(ctx, ethereum.CallMsg{
-		To:   &to,
-		Data: cd,
-	}, nil)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	if len(data) != 32 {
-		log.Fatalln("head() should return 32 bytes")
-	}
-	syncedBlockNumber := binary.BigEndian.Uint64(data[24:32])
-	if syncedBlockNumber < blockNumber {
-		log.Fatalf("not yet synced to the desired block number, %d < %d \n", syncedBlockNumber, blockNumber)
 	}
 
-	cd, err = contract.LightClientChainABI.Pack("stateRoot", big.NewInt(int64(blockNumber)))
+	length := binary.BigEndian.Uint64(sentLog.Data[56:64])
+	msg := sentLog.Data[64 : 64+length]
+
+	syncedSlot, err := GetSyncedSlot(ctx, targetClient, common.HexToAddress(*targetLC))
 	if err != nil {
 		log.Fatalln(err)
-	}
-	data, err = targetClient.CallContract(ctx, ethereum.CallMsg{
-		To:   &to,
-		Data: cd,
-	}, nil)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	if len(data) != 32 {
-		log.Fatalln("stateRoot(uint256) should return 32 bytes")
-	}
-	if common.BytesToHash(data) == (common.Hash{}) {
-		log.Fatalf("state root for execution block %d is missing\n", blockNumber)
 	}
 
-	block, err := sourceClient.BlockByHash(ctx, logs[0].BlockHash)
+	syncedBlock, err := lc.Client.GetBlock(strconv.FormatUint(syncedSlot, 10))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	syncedBlockNumber := syncedBlock.Body.ExecutionPayload.BlockNumber
+	if syncedBlockNumber < sentLog.BlockNumber {
+		log.Fatalf("not yet synced to the desired block number, %d < %d \n", syncedBlockNumber, sentLog.BlockNumber)
+	}
+
+	sourceSlot, err := lc.FindBeaconBlockByExecutionBlockNumber(sentLog.BlockNumber)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	block, err := sourceClient.BlockByHash(ctx, sentLog.BlockHash)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -117,8 +96,8 @@ func main() {
 		if err2 != nil {
 			log.Fatalln(err2)
 		}
-		if i == int(logs[0].TxIndex) {
-			logIndex = int(logs[0].Index - receipt.Logs[0].Index)
+		if i == int(sentLog.TxIndex) {
+			logIndex = int(sentLog.Index - receipt.Logs[0].Index)
 		}
 		key := rlp.AppendUint64(nil, uint64(i))
 		value, err2 := receipt.MarshalBinary()
@@ -128,17 +107,24 @@ func main() {
 		receiptTrie.Update(key, value)
 	}
 	proof := &OrderedDB{}
-	err = receiptTrie.Prove(rlp.AppendUint64(nil, uint64(logs[0].TxIndex)), 0, proof)
+	err = receiptTrie.Prove(rlp.AppendUint64(nil, uint64(sentLog.TxIndex)), 0, proof)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	data, err = contract.AMBABI.Pack(
+	receiptsRootProof, err := lc.MakeExecutionPayloadReceiptsRootProof(syncedSlot, sourceSlot)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	data, err := contract.AMBABI.Pack(
 		"executeMessageFromLog",
-		big.NewInt(int64(blockNumber)),
-		big.NewInt(int64(logs[0].TxIndex)),
+		big.NewInt(int64(syncedSlot)),
+		big.NewInt(int64(sourceSlot)),
+		big.NewInt(int64(sentLog.TxIndex)),
 		big.NewInt(int64(logIndex)),
 		msg,
+		receiptsRootProof,
 		proof.Proof,
 	)
 	if err != nil {
@@ -150,7 +136,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	to = common.HexToAddress(*targetAMB)
+	to := common.HexToAddress(*targetAMB)
 	signedTx, err := s.SendTx(ctx, &types.DynamicFeeTx{
 		To:   &to,
 		Data: data,
@@ -164,6 +150,46 @@ func main() {
 		log.Fatalln(err)
 	}
 	log.Println(contract.FormatReceipt(contract.AMBABI, receipt))
+}
+
+func GetSyncedSlot(ctx context.Context, client *ethclient.Client, addr common.Address) (uint64, error) {
+	cd, err := contract.BeaconLightClientABI.Pack("head")
+	if err != nil {
+		return 0, fmt.Errorf("can't pack head() call")
+	}
+	data, err := client.CallContract(ctx, ethereum.CallMsg{
+		To:   &addr,
+		Data: cd,
+	}, nil)
+	if err != nil {
+		return 0, fmt.Errorf("can't make eth_call request: %w", err)
+	}
+	if len(data) != 32 {
+		return 0, fmt.Errorf("call to head() should return 32 bytes, got %d instead", len(data))
+	}
+	return binary.BigEndian.Uint64(data[24:32]), nil
+}
+
+func FindSentMessageLog(ctx context.Context, client *ethclient.Client, addr common.Address, nonce int64) (*types.Log, error) {
+	topics := [][]common.Hash{
+		{contract.AMBABI.Events["SentMessage"].ID},
+		nil,
+		{common.BigToHash(big.NewInt(nonce))},
+	}
+	logs, err := client.FilterLogs(ctx, ethereum.FilterQuery{
+		Addresses: []common.Address{addr},
+		Topics:    topics,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("can't filter logs: %w", err)
+	}
+	if len(logs) == 0 {
+		return nil, fmt.Errorf("can't find log with given nonce: %d", nonce)
+	}
+	if len(logs) > 1 {
+		return nil, fmt.Errorf("found more than single SentMessage log: %d were found", len(logs))
+	}
+	return &logs[0], nil
 }
 
 type OrderedDB struct {

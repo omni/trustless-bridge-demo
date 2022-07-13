@@ -6,6 +6,11 @@ import "./interfaces/ILightClientChain.sol";
 import "./libraries/LittleEndian.sol";
 import "./libraries/Merkle.sol";
 
+/**
+ * @title LightClientChain
+ * @dev Example contract with execution layer full block verification
+ * Not used in the demo
+ */
 contract LightClientChain {
     IBeaconLightClient public beaconLightClient;
 

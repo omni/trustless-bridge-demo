@@ -3,6 +3,7 @@ pragma solidity 0.8.14;
 import "forge-std/Test.sol";
 import "../contracts/light_client/libraries/BLS12381.sol";
 import "../contracts/light_client/libraries/Merkle.sol";
+import "../contracts/amb/libraries/MPT.sol";
 import "../contracts/light_client/utils/BeaconLightClientCryptoUtils.sol";
 
 contract MultiProofTest is Test {

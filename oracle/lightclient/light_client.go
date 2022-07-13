@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
 	ethpb2 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 
 	"oracle/beaconclient"
@@ -254,6 +255,121 @@ func (c *LightClient) GetBeaconState(slot uint64) (*ethpb2.BeaconStateBellatrix,
 	return state, stateTree, nil
 }
 
+func (c *LightClient) MakeExecutionPayloadStateRootProof(slot uint64) ([]common.Hash, error) {
+	state, stateTree, err := c.GetBeaconState(slot)
+	if err != nil {
+		return nil, fmt.Errorf("can't get beacon state: %w", err)
+	}
+	proof1 := stateTree.MakeProof(24)
+
+	payloadTree := makeExecutionPayloadTree(state.LatestExecutionPayloadHeader)
+	proof2 := payloadTree.MakeProof(2)
+
+	return append(proof2.Path, proof1.Path...), nil
+}
+
+func (c *LightClient) MakeExecutionPayloadReceiptsRootProof(sourceSlot, targetSlot uint64) ([]common.Hash, error) {
+	if sourceSlot < targetSlot {
+		return nil, fmt.Errorf("can't make proof for sourceSlot %d < targetSlot %d", sourceSlot, targetSlot)
+	}
+	sourceState, sourceStateTree, err := c.GetBeaconState(sourceSlot)
+	if err != nil {
+		return nil, fmt.Errorf("can't get beacon state: %w", err)
+	}
+	targetState, targetStateTree, err := c.GetBeaconState(targetSlot)
+	if err != nil {
+		return nil, fmt.Errorf("can't get beacon state: %w", err)
+	}
+
+	var proof []common.Hash
+	if sourceSlot == targetSlot {
+		// do nothing
+	} else if targetSlot+c.Spec.SlotsPerHistoricalRoot > sourceSlot {
+		var hashes []common.Hash
+		for _, h := range sourceState.StateRoots {
+			hashes = append(hashes, common.BytesToHash(h))
+		}
+		proof1 := crypto.NewVectorMerkleTree(hashes...).MakeProof(int(targetSlot) % len(sourceState.StateRoots))
+		proof2 := sourceStateTree.MakeProof(6)
+		proof = append(proof1.Path, proof2.Path...)
+	} else {
+		historicalRootIndex := targetSlot / c.Spec.SlotsPerHistoricalRoot
+		historicalBatchSlot := historicalRootIndex*c.Spec.SlotsPerHistoricalRoot + c.Spec.SlotsPerHistoricalRoot
+
+		historicalState, _, err2 := c.GetBeaconState(historicalBatchSlot)
+		if err2 != nil {
+			return nil, fmt.Errorf("can't get beacon state: %w", err2)
+		}
+
+		// state_root -> state_roots -> historical_root -> historical_roots -> state_root
+		var stateRoots, blockRoots, historicalRoots []common.Hash
+		for i := range historicalState.StateRoots {
+			stateRoots = append(stateRoots, common.BytesToHash(historicalState.StateRoots[i]))
+			blockRoots = append(blockRoots, common.BytesToHash(historicalState.BlockRoots[i]))
+		}
+		for _, h := range sourceState.HistoricalRoots {
+			historicalRoots = append(historicalRoots, common.BytesToHash(h))
+		}
+		proof1 := crypto.NewVectorMerkleTree(stateRoots...).MakeProof(int(targetSlot) % len(historicalState.StateRoots))
+		proof2 := crypto.NewListMerkleTree(historicalRoots, c.Spec.HistoricalRootsLimit).MakeProof(int(historicalRootIndex))
+		proof3 := sourceStateTree.MakeProof(7)
+
+		proof = append(proof1.Path, crypto.NewVectorMerkleTree(blockRoots...).Hash())
+		proof = append(proof, proof2.Path...)
+		proof = append(proof, proof3.Path...)
+	}
+
+	payloadTree := makeExecutionPayloadTree(targetState.LatestExecutionPayloadHeader)
+	proof = append(targetStateTree.MakeProof(24).Path, proof...)
+	proof = append(payloadTree.MakeProof(3).Path, proof...)
+	return proof, nil
+}
+
+func (c *LightClient) FindBeaconBlockByExecutionBlockNumber(blockNumber uint64) (uint64, error) {
+	log.Printf("Looking for beacon block with execution payload block %d\n", blockNumber)
+	block, err := c.Client.GetBlock("head")
+	if err != nil {
+		return 0, fmt.Errorf("can't get latest block: %w", err)
+	}
+
+	if block.Body.ExecutionPayload == nil {
+		return 0, fmt.Errorf("latest beacon block at slot %d has empty execution payload", block.Slot)
+	}
+	latestExecutionBlock := block.Body.ExecutionPayload.BlockNumber
+	if latestExecutionBlock < blockNumber {
+		return 0, fmt.Errorf("latest execution block number %d is less than target block number %d", latestExecutionBlock, blockNumber)
+	}
+	l, r := c.Spec.BellatrixForkEpoch*c.Spec.SlotsPerEpoch, uint64(block.Slot)
+	for l < r {
+		m := (l + r) / 2
+		for s := uint64(1); m >= l && m <= r; s++ {
+			log.Printf("testing beacon block %d (%d..%d)\n", m, l, r)
+			block, err = c.Client.GetBlock(strconv.FormatUint(m, 10))
+			if err != nil {
+				log.Printf("can't get beacon block at slot %d\n", m)
+				if s%2 == 0 {
+					m += s
+				} else {
+					m -= s
+				}
+				continue
+			}
+			break
+		}
+		if m < l || m > r {
+			l = r
+			break
+		}
+		if block.Body.ExecutionPayload == nil || block.Body.ExecutionPayload.BlockNumber < blockNumber {
+			l = m + 1
+		} else {
+			r = m
+		}
+	}
+	log.Printf("found block %d\n", l)
+	return l, nil
+}
+
 func (c *LightClient) proveNewSyncCommittee(slot uint64, stateRoot common.Hash, next bool) (*SyncCommittee, *crypto.MerkleProof, error) {
 	state, stateTree, err := c.GetBeaconState(slot)
 	if err != nil {
@@ -280,4 +396,23 @@ func (c *LightClient) syncDomainRoot() common.Hash {
 	forkRoot := crypto.Sha256Hash(forkVersion.Bytes(), c.Genesis.GenesisValidatorsRoot.Bytes())
 	copy(res[4:], forkRoot[:28])
 	return res
+}
+
+func makeExecutionPayloadTree(payload *ethpb2.ExecutionPayloadHeader) *crypto.MerkleTree {
+	return crypto.NewVectorMerkleTree(
+		common.BytesToHash(payload.ParentHash),
+		common.BytesToHash(bytesutil.PadTo(payload.FeeRecipient, 32)),
+		common.BytesToHash(payload.StateRoot),
+		common.BytesToHash(payload.ReceiptsRoot),
+		crypto.BytesToMerkleHash(payload.LogsBloom),
+		common.BytesToHash(payload.PrevRandao),
+		crypto.UintToHash(payload.BlockNumber),
+		crypto.UintToHash(payload.GasLimit),
+		crypto.UintToHash(payload.GasUsed),
+		crypto.UintToHash(payload.Timestamp),
+		crypto.HashUint8List(payload.ExtraData, 32),
+		common.BytesToHash(payload.BaseFeePerGas),
+		common.BytesToHash(payload.BlockHash),
+		common.BytesToHash(payload.TransactionsRoot),
+	)
 }

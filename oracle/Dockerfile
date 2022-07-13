@@ -9,7 +9,6 @@ COPY . .
 
 RUN mkdir -p out/light_client out/light_client_chain out/amb && \
     go build -o ./out/light_client ./cmd/light_client/... && \
-    go build -o ./out/light_client_chain ./cmd/light_client_chain/... && \
     go build -o ./out/amb ./cmd/amb/...
 
 FROM ubuntu:20.04

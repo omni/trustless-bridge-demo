@@ -18,17 +18,12 @@ library MPT {
         return ((path.length-1)*2 + nibble%2, nibble > 1);
     }
 
-    function verifyMPTProof(
-        bytes32 root,
-        bytes32 key,
-        bytes[] memory proof
-    ) internal pure returns (bytes memory) {
+    function readProof(bytes32 key, bytes[] memory proof) internal pure returns (bytes memory) {
+        bytes32 root;
+        bytes memory node = proof[0];
         uint256 currentPathLength = 0;
-        for (uint256 i = 0; i < proof.length; i++) {
-            bytes memory node = proof[i];
-            bytes32 hash = keccak256(node);
-            require(root == hash, string(abi.encodePacked("MPT: node hash does not match")));
-
+        uint256 i = 0;
+        while (true) {
             RLPReader.RLPItem[] memory ls = node.toRlpItem().toList();
             if (ls.length == 17) {
                 uint256 nibble = _nibble(key, currentPathLength++);
@@ -36,16 +31,17 @@ library MPT {
             } else {
                 require(ls.length == 2, "MPT: invalid RLP list length");
                 (uint256 extensionPathLength, bool isLeaf) = _decodePathLength(ls[0].toBytes());
-                node = ls[1].toBytes();
                 currentPathLength += extensionPathLength;
                 if (isLeaf) {
                     // require(currentPathLength == 64, "MPT: invalid leaf path length");
-                    return node;
+                    return ls[1].toBytes();
                 } else {
-                    root = keccak256(node);
+                    root = bytes32(ls[1].toUint());
                 }
             }
+
+            node = proof[++i];
+            require(root == keccak256(node), string(abi.encodePacked("MPT: node hash does not match")));
         }
-        revert("MPT: invalid proof");
     }
 }

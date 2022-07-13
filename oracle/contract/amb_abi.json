@@ -56,29 +56,40 @@
     "type": "event"
   },
   {
-    "inputs": [],
-    "name": "chain",
-    "outputs": [
+    "anonymous": false,
+    "inputs": [
       {
-        "internalType": "contract ILightClientChain",
-        "name": "",
-        "type": "address"
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "slot",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "storageRoot",
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "name": "VerifiedStorageRoot",
+    "type": "event"
   },
   {
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "sourceBlock",
+        "name": "sourceSlot",
         "type": "uint256"
       },
       {
         "internalType": "bytes",
         "name": "message",
         "type": "bytes"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "stateRootProof",
+        "type": "bytes32[]"
       },
       {
         "internalType": "bytes[]",
@@ -106,7 +117,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "sourceBlock",
+        "name": "sourceSlot",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "targetSlot",
         "type": "uint256"
       },
       {
@@ -123,6 +139,11 @@
         "internalType": "bytes",
         "name": "message",
         "type": "bytes"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "receiptsRootProof",
+        "type": "bytes32[]"
       },
       {
         "internalType": "bytes[]",
@@ -177,7 +198,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "newChain",
+        "name": "newLightClient",
         "type": "address"
       },
       {
@@ -194,6 +215,19 @@
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lightClient",
+    "outputs": [
+      {
+        "internalType": "contract IBeaconLightClient",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -331,6 +365,25 @@
       }
     ],
     "name": "sentMessages",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "storageRoot",
     "outputs": [
       {
         "internalType": "bytes32",
