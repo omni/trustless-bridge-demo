@@ -18,7 +18,10 @@ Messages are being recorded in state mapping, so that the can be later proven on
 * AMB executor - `./oracle/cmd/amb/execute_storage` - worker for executing sent AMB messages through storage verification.
 * AMB executor - `./oracle/cmd/amb/execute_log` - worker for executing sent AMB messages through emitted log verification.
 
-## Demo Scripts
+## Demo Video
+To get a better understanding of what's going on here and how the bridge works in practice, check out a short demo video - https://youtu.be/VoXDHe5wetE
+
+## Running Demo Locally
 
 ### Requirements
 In order to execute demo scripts, make sure the following requirements are installed on your host:
@@ -65,10 +68,16 @@ Foreign BN API `http://localhost:6052`
 ### Deploy contracts
 This script deploys and initializes all necessary smart contract on both networks: Light clients, AMB, Omnibridge.
 ```shell
-./scripts/setup.sh
+./scripts/deploy.sh
 ```
 Deployed contract addresses are written to `./vars/contracts.env` after deployment.
 All scripts below will automatically use this file for gathering relevant contract addresses.
+
+### Start Light Client workers
+This script will launch a pair of oracles that will periodically generate and sumbit light client updates on-chain.
+```shell
+./scripts/start_light_client_workers.sh
+```
 
 ### Send tokens through Omnibridge + AMB
 These scripts simply send 1 ETH through the following set of contracts: `WETHOmnibridgeRouter -> {Home,Foreign}Omnibridge -> TrustlessAMB`

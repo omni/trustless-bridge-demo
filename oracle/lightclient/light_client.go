@@ -343,7 +343,6 @@ func (c *LightClient) FindBeaconBlockByExecutionBlockNumber(blockNumber uint64) 
 	for l < r {
 		m := (l + r) / 2
 		for s := uint64(1); m >= l && m <= r; s++ {
-			log.Printf("testing beacon block %d (%d..%d)\n", m, l, r)
 			block, err = c.Client.GetBlock(strconv.FormatUint(m, 10))
 			if err != nil {
 				log.Printf("can't get beacon block at slot %d\n", m)
@@ -366,7 +365,6 @@ func (c *LightClient) FindBeaconBlockByExecutionBlockNumber(blockNumber uint64) 
 			r = m
 		}
 	}
-	log.Printf("found block %d\n", l)
 	return l, nil
 }
 
